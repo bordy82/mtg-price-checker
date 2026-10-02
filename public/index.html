@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MTG Price Checker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>MTG Price Checker <span id="subtitle" class="sub">best offer per card</span></h1>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Mode">
+        <button data-view="sell" class="active">Selling</button>
+        <button data-view="buy">Buying</button>
+      </div>
+      <div id="value-switch" class="seg" role="group" aria-label="Compare by">
+        <button data-value="credit" class="active">Store credit</button>
+        <button data-value="cash">Cash</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <form id="search-form" class="search">
+        <input id="search-input" type="search" placeholder="Card name, e.g. Aettir and Priwen" autocomplete="off" required minlength="2">
+        <button type="submit">Search</button>
+      </form>
+      <div id="filters" class="filters" hidden></div>
+      <div id="search-status" class="status"></div>
+      <div class="table-wrap">
+        <table id="results" class="grid" hidden>
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2><span id="list-title">My cards to sell</span> <span id="list-count" class="pill"></span></h2>
+        <div class="panel-actions">
+          <span id="updated" class="muted"></span>
+          <button id="refresh" class="ghost">Refresh prices</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="list" class="grid">
+          <thead></thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+      </div>
+      <p id="list-empty" class="muted empty">Search for a card above and click <b>Add</b> on the version you own.</p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

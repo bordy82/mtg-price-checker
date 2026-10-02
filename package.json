@@ -1,0 +1,20 @@
+{
+  "name": "mtg-price-checker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Compare MTG buylist and retail prices across Quebec game stores to get the most store credit or the best price.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bordy82/mtg-price-checker.git"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
