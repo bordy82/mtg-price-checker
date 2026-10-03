@@ -40,6 +40,9 @@ Your lists are stored locally in `data/list.json` (selling) and `data/wishlist.j
 
 ## How it works
 
+For more detail, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (components, data flow, matching algorithm, data shapes)
+and [docs/STORES.md](docs/STORES.md) (each store's endpoints, fields, and quirks).
+
 ```
 server.js            Express server: static page + JSON API
 stores/              one adapter per store
@@ -53,6 +56,7 @@ lib/
   normalize.js         names, finishes, versions, set names, matching keys
   storepass.js         shared fetching for Storepass-hosted buylists
 public/              the web page (vanilla HTML/CSS/JS)
+docs/                architecture and per-store reference
 ```
 
 Each store adapter exports:
@@ -77,8 +81,10 @@ Each store adapter exports:
 
 1. Find the store's search data, ideally a JSON request in the browser's network tab, otherwise the HTML.
 2. Check what the site displays: some show **cash**, others show **credit** directly.
-3. Create `stores/<store>.js` exporting `{ id, label, creditNote, buylistUrl, search, searchRetail }`, returning the offer shapes above.
+3. Create `stores/<store>.js` exporting `{ id, label, creditNote, search, searchRetail }`, returning the offer shapes above.
 4. Add it to `stores/index.js`. The UI adds a column automatically.
+
+The full checklist is in [docs/STORES.md](docs/STORES.md#adding-a-store).
 
 ## Disclaimer
 

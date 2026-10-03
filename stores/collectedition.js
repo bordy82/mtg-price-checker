@@ -5,7 +5,7 @@
 // which match cards.collect-edition.com.
 
 const { round2, normCollector, normFinish, normTreatment } = require('../lib/normalize');
-const { fetchProducts, buylistUrl } = require('../lib/storepass');
+const { fetchProducts } = require('../lib/storepass');
 
 const HOST = 'buylist.collect-edition.com';
 const STORE_ID = 'dFODoSzI0G';
@@ -75,7 +75,6 @@ module.exports = {
   id: 'ce',
   label: 'Collect-Edition',
   creditNote: 'site price = credit',
-  buylistUrl: buylistUrl(HOST),
   search,
   searchRetail,
 };

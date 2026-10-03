@@ -11,11 +11,16 @@ Guidance for Claude when working in this repository.
 
 ## Architecture
 
-- `server.js`: Express 5. `searchAll(query, { mode })` calls every store in parallel and merges the results. Results are cached 10 min per mode and query; results with a failed store aren't cached. `/api/refresh` keeps a failed store's last known prices.
-- `stores/*.js`: one adapter per store with `search` (buylist → `cash`, `credit`) and `searchRetail` (retail → `price`, `stock`). They share an identity part: `name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments, image`.
+Full details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); per-store endpoints and fields are in [docs/STORES.md](docs/STORES.md).
+Update those docs when you change behavior they describe.
+
+- `server.js`: Express 5. `searchAll(query, { mode })` calls every store in parallel and merges the results. Results are cached 10 min per mode and query; results with a failed store aren't cached. `/api/refresh` keeps a failed store's last known prices. Errors go back as JSON.
+- `stores/*.js`: one adapter per store, exporting `{ id, label, creditNote, search, searchRetail }`. `search` returns buylist offers (`cash`, `credit`); `searchRetail` returns retail listings (`price`, `stock`). They share an identity part: `name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments, image`. The HTTP helper and User-Agent live in `lib/normalize.js`.
 - `lib/match.js`: `mergeOffers(offers, query, mode)` makes one row per printing.
   - Pass 1 uses strict keys (`printingKeys`).
   - Pass 2 handles offers without a collector number using `looseKey`. They merge only when exactly one row matches; if several do, the exact special-foil label can narrow it down.
+  - Versions are compared by core words (`coreVersions`). Serialized copies (`…z` number or a "serial" label, see `isSerialized`) are kept apart from regular ones.
+  - Prefer leaving a listing unmerged over risking a wrong merge.
 - `lib/normalize.js`: name, finish, treatment and set-name normalization. Searches use `frontName()` because stores join two-name cards differently (`A // B` vs `A - B`).
 - `public/app.js`: vanilla JS. Everything that differs between Selling and Buying lives in the `MODES` config. Keep the rendering code shared.
 
@@ -42,9 +47,10 @@ Guidance for Claude when working in this repository.
   - Price is **cash**; credit = cash × 1.3. The user confirmed 30%; the French policy page wrongly says 50%.
   - No collector number unless the name has one (`Sol Ring (0408)`).
   - Retail stock = the `max` of the quantity select.
-  - The site sometimes drops connections, so requests retry 3×. Keep request volume low.
+  - The server often drops connections or returns 502 (plain curl too), so requests retry 4× with backoff. Keep request volume low.
 
 ## Conventions
 
 - NM English only. One row per printing; no quantity column (the user found it too cramped).
+- When running a throwaway test server, use another port (`PORT=3999 npm start`) and stop it by PID. Don't use `pkill -f "node server.js"`, which can kill the user's main server.
 - When adding a store, first confirm whether its site displays cash or credit.

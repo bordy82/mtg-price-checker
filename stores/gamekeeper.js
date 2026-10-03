@@ -4,12 +4,11 @@
 // Listings have no collector number unless the name carries one ("Sol Ring (0408)"),
 // so most offers are matched to other stores by name + set + finish + version (see lib/match.js).
 
-const { round2, normCollector, normFinish, normTreatment, normName } = require('../lib/normalize');
+const { round2, normCollector, normFinish, normTreatment, normName, UA } = require('../lib/normalize');
 
 const BASE = 'https://www.gamekeeperonline.com';
 const CREDIT_MULTIPLIER = 1.3; // Buy/Sell policy (EN): +30% on Magic store credit (the FR page says 50%; confirmed 30%)
 const MAX_PAGES = 8;
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) mtg-buylist/0.1';
 
 // Game Keeper set names that don't resemble what the other stores call them.
 const SET_ALIASES = {
@@ -85,8 +84,8 @@ function parseProducts(html) {
     .filter(Boolean);
 }
 
-// The site drops connections now and then; retry a couple of times before giving up.
-async function fetchHtml(url, attempts = 3) {
+// The site often drops connections or answers 502 (plain curl too); failures are fast, so retry with backoff.
+async function fetchHtml(url, attempts = 4) {
   for (let i = 1; ; i++) {
     try {
       const res = await fetch(url, { headers: { 'User-Agent': UA } });
@@ -94,7 +93,7 @@ async function fetchHtml(url, attempts = 3) {
       return await res.text();
     } catch (err) {
       if (i >= attempts) throw err;
-      await new Promise((r) => setTimeout(r, 1000 * i));
+      await new Promise((r) => setTimeout(r, 750 * i));
     }
   }
 }
@@ -144,7 +143,6 @@ module.exports = {
   id: 'gk',
   label: 'Game Keeper',
   creditNote: 'cash + 30%',
-  buylistUrl: (name) => `${BASE}/buylist/search?c=1&q=${encodeURIComponent(name)}`,
   search,
   searchRetail,
 };

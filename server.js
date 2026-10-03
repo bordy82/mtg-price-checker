@@ -112,6 +112,12 @@ app.post('/api/refresh', async (req, res) => {
   res.json({ list, errors });
 });
 
+// The page expects JSON errors (Express's default handler sends HTML).
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: err.message });
+});
+
 app.listen(PORT, (err) => {
   if (err) {
     console.error(
@@ -121,5 +127,5 @@ app.listen(PORT, (err) => {
     );
     process.exit(1);
   }
-  console.log(`MTG buylist running at http://localhost:${PORT}`);
+  console.log(`MTG Price Checker running at http://localhost:${PORT}`);
 });

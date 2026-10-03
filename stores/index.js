@@ -1,5 +1,5 @@
 // Registry of stores. To add a store, create an adapter exporting
-// { id, label, creditNote, buylistUrl(name),
+// { id, label, creditNote,
 //   search(name)       -> buylist offers  { ...printing, cash, credit },
 //   searchRetail(name) -> retail listings { ...printing, price, stock } }
 // and list it here.

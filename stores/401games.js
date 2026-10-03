@@ -4,7 +4,7 @@
 // Retail: variant_info carries the Shopify store's price + inventory per condition (matches store.401games.ca).
 
 const { round2, normCollector, normFinish, normTreatment } = require('../lib/normalize');
-const { fetchProducts, buylistUrl } = require('../lib/storepass');
+const { fetchProducts } = require('../lib/storepass');
 
 const HOST = 'buylist.401games.ca';
 const STORE_ID = 'USYSFNJ9bg';
@@ -88,7 +88,6 @@ module.exports = {
   id: '401',
   label: '401 Games',
   creditNote: 'cash + 30%',
-  buylistUrl: buylistUrl(HOST),
   search,
   searchRetail,
 };

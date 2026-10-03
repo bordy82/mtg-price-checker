@@ -90,7 +90,6 @@ module.exports = {
   id: 'f2f',
   label: 'Face to Face',
   creditNote: 'cash + 30%',
-  buylistUrl: (name) => `https://facetofacegames.com/search?q=${encodeURIComponent(name)}`,
   search,
   searchRetail,
 };
