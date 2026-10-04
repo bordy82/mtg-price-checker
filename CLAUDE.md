@@ -9,6 +9,25 @@ Guidance for Claude when working in this repository.
 - No build step and no test suite. Verify changes by running real searches (e.g. "Aettir and Priwen", "Sol Ring", "Sephiroth, Fabled SOLDIER") and checking the numbers against the stores' websites.
 - `data/list.json` (sell list) and `data/wishlist.json` (wishlist) are the user's real data. Don't overwrite them while testing.
 
+## GitHub project board
+
+- Board: https://github.com/users/bordy82/projects/10 ("MTG Price Checker", project number **10**, owner **bordy82**). "The project", "the board" and "cards" mean this.
+- Repo: `bordy82/mtg-price-checker`
+- Column flow: Backlog → Ready → In progress → In review → Done
+- Process (`/tackle-project`): take each **Ready** card → move it to **In progress** → read the issue → implement on a branch `fix/issue-<N>-<slug>` (or `feat/...`) → verify with real searches on a throwaway server (`PORT=3999 npm start`, stopped by PID), since there's no type-check or test suite → commit ending `Fixes #<N>` → push → PR body starting `Closes #<N>` → move the card to **In review**. Spikes get an issue comment instead of a PR. Never merge; the user merges after review (`/merge-issue <N>`). Running `/tackle-project` counts as asking for the commit, push and PR.
+- IDs:
+  - Project ID: `PVT_kwHOBZQit84BlhH6`
+  - Status field ID: `PVTSSF_lAHOBZQit84BlhH6zhkNt3A`
+  - Status options: Backlog `f75ad846` · Ready `61e4505c` · In progress `47fc9ee4` · In review `df73e18b` · Done `98236657`
+- Example: move an item to In progress:
+
+```sh
+gh project item-edit --id <ITEM_ID> --project-id PVT_kwHOBZQit84BlhH6 \
+  --field-id PVTSSF_lAHOBZQit84BlhH6zhkNt3A --single-select-option-id 47fc9ee4
+```
+
+(Item IDs come from `gh project item-list 10 --owner bordy82 --format json`.)
+
 ## Architecture
 
 Full details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); per-store endpoints and fields are in [docs/STORES.md](docs/STORES.md).
