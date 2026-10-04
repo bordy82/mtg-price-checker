@@ -343,6 +343,20 @@ $('#search-form').addEventListener('submit', (e) => {
   search($('#search-input').value.trim());
 });
 
+// Clicking or tabbing into the search field selects its text, so typing replaces the last search.
+// The mouseup after a focusing click would clear the selection, so that one mouseup is cancelled;
+// later clicks place the cursor as usual.
+{
+  const input = $('#search-input');
+  let focusingClick = false;
+  input.addEventListener('mousedown', () => { focusingClick = document.activeElement !== input; });
+  input.addEventListener('focus', () => input.select());
+  input.addEventListener('mouseup', (e) => {
+    if (focusingClick) e.preventDefault();
+    focusingClick = false;
+  });
+}
+
 $('#filters').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
