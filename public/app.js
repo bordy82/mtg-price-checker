@@ -60,7 +60,7 @@ async function api(path, options = {}) {
 
 function thumb(image) {
   if (!image) return '<td class="thumb"></td>';
-  return `<td class="thumb"><img src="${esc(image)}" alt="" loading="lazy"><img class="big" src="${esc(image)}" alt=""></td>`;
+  return `<td class="thumb" data-preview="${esc(image)}"><img src="${esc(image)}" alt="" loading="lazy"></td>`;
 }
 
 function printingTags(p) {
@@ -322,6 +322,33 @@ function setView(view) {
   // Show the same card in the new mode.
   if (hadResults && query.length >= 2) search(query);
 }
+
+// ---- card preview ----
+// One floating preview for every thumbnail. It's positioned in the window rather than inside the table,
+// so the table frame (which scrolls sideways on small screens, and so clips) can't cut it off.
+
+const preview = $('#card-preview');
+
+function showPreview(cell) {
+  if (preview.getAttribute('src') !== cell.dataset.preview) preview.src = cell.dataset.preview;
+  preview.hidden = false;
+  const r = cell.getBoundingClientRect();
+  const margin = 8;
+  // Start beside the row, then keep the whole image inside the window (near the bottom it opens upward).
+  const top = Math.min(Math.max(margin, r.top - 40), innerHeight - preview.offsetHeight - margin);
+  preview.style.left = `${r.right + 10}px`;
+  preview.style.top = `${top}px`;
+}
+
+const hidePreview = () => { preview.hidden = true; };
+
+document.addEventListener('mouseover', (e) => {
+  const cell = e.target.closest('td.thumb[data-preview]');
+  if (cell) showPreview(cell);
+  else hidePreview();
+});
+document.documentElement.addEventListener('mouseleave', hidePreview);
+window.addEventListener('scroll', hidePreview, { passive: true });
 
 // ---- events ----
 
