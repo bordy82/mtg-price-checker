@@ -258,12 +258,26 @@ function renderList() {
   table.querySelector('tfoot').innerHTML = tfoot;
 }
 
+// List order: starred cards first, then by card name; printings of the same card by set, number, finish.
+// Display only: the saved list keeps the order cards were added.
+const byText = (a, b) => String(a ?? '').localeCompare(String(b ?? ''), undefined, { sensitivity: 'base', numeric: true });
+const FINISH_ORDER = ['nonfoil', 'foil', 'etched'];
+const finishRank = (f) => (FINISH_ORDER.includes(f) ? FINISH_ORDER.indexOf(f) : FINISH_ORDER.length);
+
+function compareListItems(a, b) {
+  return Boolean(b.starred) - Boolean(a.starred)
+    || byText(a.name, b.name)
+    || byText(a.setName || a.setCode, b.setName || b.setCode)
+    || byText(a.collectorNumber, b.collectorNumber)
+    || finishRank(a.finish) - finishRank(b.finish)
+    || byText(a.finish, b.finish);
+}
+
 // One list table: starred cards first, an optional starred subtotal, and per-store totals.
 // `chosen` highlights one store's column (the store a "Selling to" list is for).
 function listTable(items, { subtotal = false, chosen = null } = {}) {
   const c = cfg();
-  // Starred cards first; the sort is stable, so each group keeps the order cards were added.
-  const rows = [...items].sort((a, b) => Boolean(b.starred) - Boolean(a.starred));
+  const rows = [...items].sort(compareListItems);
   const html = rows.map((item) => {
     const best = bestStore(item.prices);
     const key = esc(item.key);

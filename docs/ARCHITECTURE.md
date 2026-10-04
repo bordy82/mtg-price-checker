@@ -118,7 +118,7 @@ Turns each store's naming into comparable values:
 { key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred?, sellTo? }
 ```
 
-`starred: true` marks a card the user is actually selling or buying. The page shows starred cards first (a stable sort of a copy, so the saved order is unchanged), and its list buttons find items by `key`, not by row position. When some (not all) cards are starred, a subtotal for the starred cards sits under the last one, built with the same `listTotals` / `totalRows` helpers as the footer.
+`starred: true` marks a card the user is actually selling or buying. The page shows starred cards first, then sorts each group by card name (then set, collector number and finish) with `compareListItems`. It sorts a copy, so the saved order is unchanged, and its list buttons find items by `key`, not by row position. When some (not all) cards are starred, a subtotal for the starred cards sits under the last one, built with the same `listTotals` / `totalRows` helpers as the footer.
 
 `sellTo: '<storeId>'` (sell list only) puts a card in a "Selling to <store>" section under the main list. "Move N starred cards to [store]" sets it on the main list's starred cards; unstarring a card in a section deletes both `starred` and `sellTo`, sending it back to the main list. Every table (main list and each section) is built by `listTable(items, { subtotal, chosen })`; `chosen` tints that store's column. An unknown `sellTo` counts as the main list.
 
