@@ -5,6 +5,7 @@ const state = {
   results: [],
   filters: { finish: 'all', treatments: new Set() },
   lists: { sell: [], buy: [] },
+  excluded: { sell: new Set(), buy: new Set() }, // stores left out of the comparison, per view
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -15,6 +16,7 @@ const otherValue = () => (state.sellValue === 'credit' ? 'cash' : 'credit');
 const finishGroup = (f) => (f === 'nonfoil' || f === 'etched' ? f : 'foil');
 const NORMAL = 'Normal';
 const VIEW_KEY = 'mtg-buylist:view';
+const EXCLUDED_KEY = 'mtg-buylist:excluded';
 
 // Everything that differs between selling and buying. Prices are { cash, credit } or { price, stock }.
 const MODES = {
@@ -45,6 +47,9 @@ const MODES = {
 };
 const cfg = () => MODES[state.view];
 const currentList = () => state.lists[state.view];
+const isIncluded = (storeId) => !state.excluded[state.view].has(storeId);
+// Unticked stores keep their column, dimmed.
+const colClass = (storeId) => (isIncluded(storeId) ? 'num' : 'num excluded');
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -79,7 +84,7 @@ function bestStore(prices) {
   let best = null;
   for (const s of state.stores) {
     const p = prices?.[s.id];
-    if (eligible(p) && (!best || better(value(p), value(prices[best])))) best = s.id;
+    if (isIncluded(s.id) && eligible(p) && (!best || better(value(p), value(prices[best])))) best = s.id;
   }
   return best;
 }
@@ -88,15 +93,15 @@ function priceCell(prices, storeId, best) {
   const { value, eligible, alt } = cfg();
   const p = prices?.[storeId];
   const v = value(p);
-  if (!v) return '<td class="num"><span class="price none">—</span></td>';
+  if (!v) return `<td class="${colClass(storeId)}"><span class="price none">—</span></td>`;
   const cls = storeId === best ? 'best' : eligible(p) ? '' : 'oos';
-  return `<td class="num"><span class="price ${cls}">
+  return `<td class="${colClass(storeId)}"><span class="price ${cls}">
     <span class="main">${money(v)}</span><span class="alt">${esc(alt(p))}</span></span></td>`;
 }
 
 function storeHeaders() {
   return state.stores
-    .map((s) => `<th class="num" title="${state.view === 'sell' ? esc(s.creditNote) : ''}">${esc(s.label)}</th>`)
+    .map((s) => `<th class="${colClass(s.id)}" title="${state.view === 'sell' ? esc(s.creditNote) : ''}">${esc(s.label)}</th>`)
     .join('');
 }
 
@@ -279,12 +284,12 @@ function totalRows(label, { perStore, missing }, cls = '') {
   return `
     <tr class="total ${cls}">
       <td></td><td></td><td>${esc(label)}</td>
-      ${state.stores.map((s) => `<td class="num">${money(perStore[s.id])}</td>`).join('')}
+      ${state.stores.map((s) => `<td class="${colClass(s.id)}">${money(perStore[s.id])}</td>`).join('')}
       <td></td>
     </tr>
     <tr class="total sub ${cls}">
       <td></td><td></td><td></td>
-      ${state.stores.map((s) => `<td class="num">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}
+      ${state.stores.map((s) => `<td class="${colClass(s.id)}">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}
       <td></td>
     </tr>`;
 }
@@ -326,7 +331,33 @@ function applyView() {
   $('#value-switch').hidden = state.view !== 'sell';
   $('#subtitle').textContent = cfg().subtitle;
   document.body.dataset.view = state.view;
+  renderStoreChips();
   renderList();
+}
+
+// ---- store chips: which stores are compared (each view has its own set) ----
+
+function renderStoreChips() {
+  $('#store-chips').innerHTML = state.stores
+    .map((s) => `<button data-store="${esc(s.id)}" class="${isIncluded(s.id) ? 'active' : ''}" aria-pressed="${isIncluded(s.id)}">${esc(s.label)}</button>`)
+    .join('');
+}
+
+function loadExcluded() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(EXCLUDED_KEY) || '{}');
+    const ids = new Set(state.stores.map((s) => s.id));
+    for (const view of ['sell', 'buy']) {
+      // Ignore stores that no longer exist.
+      state.excluded[view] = new Set((saved[view] || []).filter((id) => ids.has(id)));
+    }
+  } catch {}
+}
+
+function saveExcluded() {
+  try {
+    localStorage.setItem(EXCLUDED_KEY, JSON.stringify({ sell: [...state.excluded.sell], buy: [...state.excluded.buy] }));
+  } catch {}
 }
 
 function setView(view) {
@@ -443,6 +474,18 @@ document.querySelectorAll('[data-value]').forEach((b) =>
 
 $('#refresh').addEventListener('click', refreshPrices);
 
+$('#store-chips').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-store]');
+  if (!b) return;
+  const excluded = state.excluded[state.view];
+  if (excluded.has(b.dataset.store)) excluded.delete(b.dataset.store);
+  else excluded.add(b.dataset.store);
+  saveExcluded();
+  renderStoreChips();
+  renderList();
+  if (state.results.length) renderResults();
+});
+
 (async function init() {
   try {
     const saved = localStorage.getItem(VIEW_KEY);
@@ -453,6 +496,7 @@ $('#refresh').addEventListener('click', refreshPrices);
     api('/api/list?mode=sell'),
     api('/api/list?mode=buy'),
   ]);
+  loadExcluded();
   applyView();
   setInterval(renderUpdated, 60000);
   $('#search-input').focus();
