@@ -6,6 +6,7 @@ const state = {
   filters: { finish: 'all', treatments: new Set() },
   lists: { sell: [], buy: [] },
   excluded: { sell: new Set(), buy: new Set() }, // stores left out of the comparison, per view
+  moveTo: null, // store picked in "Move starred cards to"
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -31,6 +32,7 @@ const MODES = {
     totalLabel: () => `Total ${state.sellValue} if everything goes to…`,
     missingLabel: (n) => `${n} not bought`,
     starTitle: 'Star: actually selling this',
+    storeListTitle: (store) => `Selling to ${store}`,
   },
   buy: {
     subtitle: 'cheapest price per card',
@@ -49,7 +51,8 @@ const cfg = () => MODES[state.view];
 const currentList = () => state.lists[state.view];
 const isIncluded = (storeId) => !state.excluded[state.view].has(storeId);
 // Unticked stores keep their column, dimmed.
-const colClass = (storeId) => (isIncluded(storeId) ? 'num' : 'num excluded');
+const colClass = (storeId, chosen) =>
+  `num${isIncluded(storeId) ? '' : ' excluded'}${storeId === chosen ? ' chosen' : ''}`;
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -89,24 +92,24 @@ function bestStore(prices) {
   return best;
 }
 
-function priceCell(prices, storeId, best) {
+function priceCell(prices, storeId, best, chosen) {
   const { value, eligible, alt } = cfg();
   const p = prices?.[storeId];
   const v = value(p);
-  if (!v) return `<td class="${colClass(storeId)}"><span class="price none">—</span></td>`;
+  if (!v) return `<td class="${colClass(storeId, chosen)}"><span class="price none">—</span></td>`;
   const cls = storeId === best ? 'best' : eligible(p) ? '' : 'oos';
-  return `<td class="${colClass(storeId)}"><span class="price ${cls}">
+  return `<td class="${colClass(storeId, chosen)}"><span class="price ${cls}">
     <span class="main">${money(v)}</span><span class="alt">${esc(alt(p))}</span></span></td>`;
 }
 
 // Clicking a store's header leaves it out of the comparison (its column dims); clicking again brings it back.
-function storeHeaders() {
+function storeHeaders(chosen) {
   return state.stores
     .map((s) => {
       const included = isIncluded(s.id);
       const hint = included ? 'Click to leave out of the comparison' : 'Click to compare again';
       const title = state.view === 'sell' ? `${s.creditNote} · ${hint}` : hint;
-      return `<th class="${colClass(s.id)}"><button class="store-toggle" data-store="${esc(s.id)}"
+      return `<th class="${colClass(s.id, chosen)}"><button class="store-toggle" data-store="${esc(s.id)}"
         aria-pressed="${included}" title="${esc(title)}">${esc(s.label)}</button></th>`;
     })
     .join('');
@@ -227,25 +230,40 @@ function addToList(key) {
   renderResults();
 }
 
+// Store a sell-list card was moved to (#17), or null if it's in the main list.
+// Only the Selling tab has store lists; an unknown store id counts as the main list.
+function sellToOf(item) {
+  return state.view === 'sell' && state.stores.some((s) => s.id === item.sellTo) ? item.sellTo : null;
+}
+
 function renderList() {
   const c = cfg();
   const list = currentList();
+  const main = list.filter((item) => !sellToOf(item));
   const table = $('#list');
-  const empty = !list.length;
   $('#list-title').textContent = c.listTitle;
   $('#list-empty').innerHTML = c.emptyText;
-  $('#list-empty').hidden = !empty;
-  table.hidden = empty;
-  $('#refresh').disabled = empty;
-  $('#list-count').textContent = empty ? '' : `${list.length} card${list.length === 1 ? '' : 's'}`;
+  $('#list-empty').hidden = list.length > 0;
+  table.hidden = !main.length;
+  $('#refresh').disabled = !list.length;
+  $('#list-count').textContent = main.length ? `${main.length} card${main.length === 1 ? '' : 's'}` : '';
   renderUpdated();
-  if (empty) return;
+  renderMoveBar(main);
+  renderStoreLists(list);
+  if (!main.length) return;
 
-  table.querySelector('thead').innerHTML =
-    `<tr><th></th><th></th><th>Card</th>${storeHeaders()}<th></th></tr>`;
+  const { thead, tbody, tfoot } = listTable(main, { subtotal: true });
+  table.querySelector('thead').innerHTML = thead;
+  table.querySelector('tbody').innerHTML = tbody;
+  table.querySelector('tfoot').innerHTML = tfoot;
+}
 
+// One list table: starred cards first, an optional starred subtotal, and per-store totals.
+// `chosen` highlights one store's column (the store a "Selling to" list is for).
+function listTable(items, { subtotal = false, chosen = null } = {}) {
+  const c = cfg();
   // Starred cards first; the sort is stable, so each group keeps the order cards were added.
-  const rows = [...list].sort((a, b) => Boolean(b.starred) - Boolean(a.starred));
+  const rows = [...items].sort((a, b) => Boolean(b.starred) - Boolean(a.starred));
   const html = rows.map((item) => {
     const best = bestStore(item.prices);
     const key = esc(item.key);
@@ -253,20 +271,50 @@ function renderList() {
       <td><button class="icon star${item.starred ? ' on' : ''}" data-star="${key}" title="${esc(c.starTitle)}" aria-pressed="${Boolean(item.starred)}">${item.starred ? '★' : '☆'}</button></td>
       ${thumb(item.image)}
       <td><div class="card-name">${esc(item.name)} ${printingTags(item)}</div>${printingLine(item)}</td>
-      ${state.stores.map((s) => priceCell(item.prices, s.id, best)).join('')}
+      ${state.stores.map((s) => priceCell(item.prices, s.id, best, chosen)).join('')}
       <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
     </tr>`;
   });
 
   // Subtotal of the starred cards, under the last one. Only when it differs from the full total.
   const starred = rows.filter((item) => item.starred);
-  if (starred.length && starred.length < rows.length) {
+  if (subtotal && starred.length && starred.length < rows.length) {
     const label = c.totalLabel();
     html.splice(starred.length, 0,
       totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred), 'starred'));
   }
-  table.querySelector('tbody').innerHTML = html.join('');
-  table.querySelector('tfoot').innerHTML = totalRows(c.totalLabel(), listTotals(list));
+  return {
+    thead: `<tr><th></th><th></th><th>Card</th>${storeHeaders(chosen)}<th></th></tr>`,
+    tbody: html.join(''),
+    tfoot: totalRows(c.totalLabel(), listTotals(items), '', chosen),
+  };
+}
+
+// "Move starred cards to [store]": shown in Selling when the main list has starred cards.
+function renderMoveBar(main) {
+  const bar = $('#move-bar');
+  const count = main.filter((item) => item.starred).length;
+  bar.hidden = state.view !== 'sell' || !count;
+  if (bar.hidden) return;
+  if (!state.stores.some((s) => s.id === state.moveTo)) state.moveTo = state.stores[0]?.id;
+  $('#move-label').textContent = `Move ${count} starred card${count === 1 ? '' : 's'} to`;
+  $('#move-to').innerHTML = state.stores
+    .map((s) => `<option value="${esc(s.id)}"${s.id === state.moveTo ? ' selected' : ''}>${esc(s.label)}</option>`)
+    .join('');
+}
+
+// One "Selling to <store>" section per store that has cards, in store order.
+function renderStoreLists(list) {
+  const c = cfg();
+  $('#store-lists').innerHTML = state.stores.map((s) => {
+    const items = list.filter((item) => sellToOf(item) === s.id);
+    if (!items.length) return '';
+    const { thead, tbody, tfoot } = listTable(items, { chosen: s.id });
+    return `<section class="store-list">
+      <h3>${esc(c.storeListTitle(s.label))} <span class="pill">${items.length} card${items.length === 1 ? '' : 's'}</span></h3>
+      <div class="table-wrap"><table class="grid"><thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
+    </section>`;
+  }).join('');
 }
 
 // Per-store totals for some cards: everything at one store (eligible offers only).
@@ -286,17 +334,17 @@ function listTotals(items) {
 }
 
 // Two rows: the total per store, then how many cards each store doesn't buy / have in stock.
-function totalRows(label, { perStore, missing }, cls = '') {
+function totalRows(label, { perStore, missing }, cls = '', chosen = null) {
   const { missingLabel } = cfg();
   return `
     <tr class="total ${cls}">
       <td></td><td></td><td>${esc(label)}</td>
-      ${state.stores.map((s) => `<td class="${colClass(s.id)}">${money(perStore[s.id])}</td>`).join('')}
+      ${state.stores.map((s) => `<td class="${colClass(s.id, chosen)}">${money(perStore[s.id])}</td>`).join('')}
       <td></td>
     </tr>
     <tr class="total sub ${cls}">
       <td></td><td></td><td></td>
-      ${state.stores.map((s) => `<td class="${colClass(s.id)}">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}
+      ${state.stores.map((s) => `<td class="${colClass(s.id, chosen)}">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}
       <td></td>
     </tr>`;
 }
@@ -438,15 +486,19 @@ $('#results').addEventListener('click', (e) => {
   addToList(b.dataset.add);
 });
 
-// Rows are found by key: starred cards are shown first, so row order differs from the saved order.
-$('#list').addEventListener('click', (e) => {
+// Star / remove in the main list and in every store list. Rows are found by key: starred cards are
+// shown first, and cards are split across lists, so row order differs from the saved order.
+$('#list-panel').addEventListener('click', (e) => {
   const list = currentList();
   const star = e.target.closest('[data-star]');
   if (star) {
     const item = list.find((i) => i.key === star.dataset.star);
     if (!item) return;
-    if (item.starred) delete item.starred;
-    else item.starred = true;
+    if (item.starred) {
+      // Unstarring a card in a store list also sends it back to the main list.
+      delete item.starred;
+      delete item.sellTo;
+    } else item.starred = true;
     saveList();
     renderList();
     return;
@@ -473,6 +525,20 @@ document.querySelectorAll('[data-value]').forEach((b) =>
 );
 
 $('#refresh').addEventListener('click', refreshPrices);
+
+$('#move-to').addEventListener('change', (e) => { state.moveTo = e.target.value; });
+
+// Move the main list's starred cards into the chosen store's list.
+$('#move-btn').addEventListener('click', () => {
+  const store = $('#move-to').value;
+  if (!state.stores.some((s) => s.id === store)) return;
+  for (const item of currentList()) {
+    if (item.starred && !sellToOf(item)) item.sellTo = store;
+  }
+  state.moveTo = store;
+  saveList();
+  renderList();
+});
 
 // Store headers in either table toggle that store for the current view; both tables re-render.
 document.addEventListener('click', (e) => {

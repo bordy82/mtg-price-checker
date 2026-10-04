@@ -115,10 +115,12 @@ Turns each store's naming into comparable values:
   prices: { [storeId]: { cash, credit, retail } | { price, stock } } }
 
 // List item — saved in data/list.json or data/wishlist.json
-{ key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred? }
+{ key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred?, sellTo? }
 ```
 
 `starred: true` marks a card the user is actually selling or buying. The page shows starred cards first (a stable sort of a copy, so the saved order is unchanged), and its list buttons find items by `key`, not by row position. When some (not all) cards are starred, a subtotal for the starred cards sits under the last one, built with the same `listTotals` / `totalRows` helpers as the footer.
+
+`sellTo: '<storeId>'` (sell list only) puts a card in a "Selling to <store>" section under the main list. "Move N starred cards to [store]" sets it on the main list's starred cards; unstarring a card in a section deletes both `starred` and `sellTo`, sending it back to the main list. Every table (main list and each section) is built by `listTable(items, { subtotal, chosen })`; `chosen` tints that store's column. An unknown `sellTo` counts as the main list.
 
 `key` is the row's primary key when the item was added. Refresh finds the item again through `row.keys`, so it still
 matches if the row's primary key changes, for example when a store stops listing it.
