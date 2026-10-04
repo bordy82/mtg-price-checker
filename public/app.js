@@ -234,7 +234,7 @@ function renderList() {
 
   // Starred cards first; the sort is stable, so each group keeps the order cards were added.
   const rows = [...list].sort((a, b) => Boolean(b.starred) - Boolean(a.starred));
-  table.querySelector('tbody').innerHTML = rows.map((item) => {
+  const html = rows.map((item) => {
     const best = bestStore(item.prices);
     const key = esc(item.key);
     return `<tr>
@@ -244,29 +244,47 @@ function renderList() {
       ${state.stores.map((s) => priceCell(item.prices, s.id, best)).join('')}
       <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
     </tr>`;
-  }).join('');
+  });
 
-  // Totals: everything at one store (eligible offers only).
+  // Subtotal of the starred cards, under the last one. Only when it differs from the full total.
+  const starred = rows.filter((item) => item.starred);
+  if (starred.length && starred.length < rows.length) {
+    const label = c.totalLabel();
+    html.splice(starred.length, 0,
+      totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred), 'starred'));
+  }
+  table.querySelector('tbody').innerHTML = html.join('');
+  table.querySelector('tfoot').innerHTML = totalRows(c.totalLabel(), listTotals(list));
+}
+
+// Per-store totals for some cards: everything at one store (eligible offers only).
+function listTotals(items) {
+  const { eligible, value } = cfg();
   const perStore = {};
   const missing = {};
   for (const s of state.stores) { perStore[s.id] = 0; missing[s.id] = 0; }
-  for (const item of list) {
+  for (const item of items) {
     for (const s of state.stores) {
       const p = item.prices?.[s.id];
-      if (c.eligible(p)) perStore[s.id] += c.value(p);
+      if (eligible(p)) perStore[s.id] += value(p);
       else missing[s.id] += 1;
     }
   }
+  return { perStore, missing };
+}
 
-  table.querySelector('tfoot').innerHTML = `
-    <tr>
-      <td></td><td></td><td>${esc(c.totalLabel())}</td>
+// Two rows: the total per store, then how many cards each store doesn't buy / have in stock.
+function totalRows(label, { perStore, missing }, cls = '') {
+  const { missingLabel } = cfg();
+  return `
+    <tr class="total ${cls}">
+      <td></td><td></td><td>${esc(label)}</td>
       ${state.stores.map((s) => `<td class="num">${money(perStore[s.id])}</td>`).join('')}
       <td></td>
     </tr>
-    <tr class="sub">
+    <tr class="total sub ${cls}">
       <td></td><td></td><td></td>
-      ${state.stores.map((s) => `<td class="num">${missing[s.id] ? esc(c.missingLabel(missing[s.id])) : ''}</td>`).join('')}
+      ${state.stores.map((s) => `<td class="num">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}
       <td></td>
     </tr>`;
 }

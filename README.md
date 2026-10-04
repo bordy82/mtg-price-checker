@@ -19,6 +19,7 @@ Supported stores:
 - Search a card by name and see every printing side by side across all stores. Printings are matched by set, collector number and finish.
 - Filter results by finish (non-foil, foil, etched) and version (normal, borderless, showcase, extended art…).
 - Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click.
+- Star the cards you're actually selling or buying: they're pinned to the top, with their own subtotal.
 - The best store per card is highlighted:
   - selling: the highest offer
   - buying: the cheapest copy **in stock** (sold-out prices are shown greyed and never win)

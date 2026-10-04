@@ -117,7 +117,7 @@ Turns each store's naming into comparable values:
 { key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred? }
 ```
 
-`starred: true` marks a card the user is actually selling or buying. The page shows starred cards first (a stable sort of a copy, so the saved order is unchanged), and its list buttons find items by `key`, not by row position.
+`starred: true` marks a card the user is actually selling or buying. The page shows starred cards first (a stable sort of a copy, so the saved order is unchanged), and its list buttons find items by `key`, not by row position. When some (not all) cards are starred, a subtotal for the starred cards sits under the last one, built with the same `listTotals` / `totalRows` helpers as the footer.
 
 `key` is the row's primary key when the item was added. Refresh finds the item again through `row.keys`, so it still
 matches if the row's primary key changes, for example when a store stops listing it.

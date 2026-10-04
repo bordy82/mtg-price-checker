@@ -98,8 +98,11 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
 .grid td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .grid tbody tr:hover { background: color-mix(in srgb, var(--chip) 50%, transparent); }
 .grid th.num, .grid td.num { text-align: right; white-space: nowrap; }
-.grid tfoot td { border-bottom: 0; font-weight: 600; padding-top: 12px; }
-.grid tfoot tr.sub td { font-weight: 400; color: var(--muted); padding-top: 2px; font-size: 13px; }
+.grid tr.total td { border-bottom: 0; font-weight: 600; padding-top: 12px; }
+.grid tr.total.sub td { font-weight: 400; color: var(--muted); padding-top: 2px; font-size: 13px; }
+.grid tbody tr.total:hover { background: none; }
+/* Starred subtotal: a line under it separates the starred cards from the rest. */
+.grid tr.total.starred.sub td { border-bottom: 2px solid var(--muted); padding-bottom: 12px; }
 
 .thumb { position: relative; width: 34px; }
 .thumb img { width: 34px; border-radius: 3px; display: block; }
