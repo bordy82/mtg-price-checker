@@ -6,9 +6,12 @@ const { mergeOffers } = require('./lib/match');
 const { frontName } = require('./lib/normalize');
 
 const PORT = process.env.PORT || 3000;
+// DATA_DIR lets a test server work on copies of the lists (see `npm run start:test`).
+const DEFAULT_DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : DEFAULT_DATA_DIR;
 const LIST_FILES = {
-  sell: path.join(__dirname, 'data', 'list.json'),
-  buy: path.join(__dirname, 'data', 'wishlist.json'),
+  sell: path.join(DATA_DIR, 'list.json'),
+  buy: path.join(DATA_DIR, 'wishlist.json'),
 };
 const modeOf = (req) => (req.query.mode === 'buy' ? 'buy' : 'sell');
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -127,5 +130,6 @@ app.listen(PORT, (err) => {
     );
     process.exit(1);
   }
-  console.log(`MTG Price Checker running at http://localhost:${PORT}`);
+  const data = DATA_DIR === DEFAULT_DATA_DIR ? '' : ` (data: ${path.relative(process.cwd(), DATA_DIR) || DATA_DIR}/)`;
+  console.log(`MTG Price Checker running at http://localhost:${PORT}${data}`);
 });

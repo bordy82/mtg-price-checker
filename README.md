@@ -36,7 +36,9 @@ npm start
 
 Then open http://localhost:3000. Set `PORT` to use another port.
 
-Your lists are stored locally in `data/list.json` (selling) and `data/wishlist.json` (buying). They are git-ignored.
+Your lists are stored locally in `data/list.json` (selling) and `data/wishlist.json` (buying). They are git-ignored. Set `DATA_DIR` to keep them in another folder.
+
+To try changes without touching your lists, run `npm run start:test`. It copies both lists into `data-test/` (fresh each run) and serves the copies at http://localhost:3999.
 
 ## How it works
 

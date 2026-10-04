@@ -7,14 +7,14 @@ Guidance for Claude when working in this repository.
 - Never commit or push unless explicitly asked. The user tests features first.
 - Run with `npm start` (http://localhost:3000). After changing server or store code, restart the server; the browser page alone won't pick it up.
 - No build step and no test suite. Verify changes by running real searches (e.g. "Aettir and Priwen", "Sol Ring", "Sephiroth, Fabled SOLDIER") and checking the numbers against the stores' websites.
-- `data/list.json` (sell list) and `data/wishlist.json` (wishlist) are the user's real data. Don't overwrite them while testing.
+- `data/list.json` (sell list) and `data/wishlist.json` (wishlist) are the user's real data. Don't overwrite them while testing: test with `npm run start:test`, which copies both lists into `data-test/` (fresh each run) and serves the copies on port 3999. Plain `PORT=3999 npm start` still reads and writes the real lists.
 
 ## GitHub project board
 
 - Board: https://github.com/users/bordy82/projects/10 ("MTG Price Checker", project number **10**, owner **bordy82**). "The project", "the board" and "cards" mean this.
 - Repo: `bordy82/mtg-price-checker`
 - Column flow: Backlog → Ready → In progress → In review → Done
-- Process (`/tackle-project`): take each **Ready** card → move it to **In progress** → read the issue → implement on a branch `fix/issue-<N>-<slug>` (or `feat/...`) → verify with real searches on a throwaway server (`PORT=3999 npm start`, stopped by PID), since there's no type-check or test suite → commit ending `Fixes #<N>` → push → PR body starting `Closes #<N>` → move the card to **In review**. Spikes get an issue comment instead of a PR. Never merge; the user merges after review (`/merge-issue <N>`). Running `/tackle-project` counts as asking for the commit, push and PR.
+- Process (`/tackle-project`): take each **Ready** card → move it to **In progress** → read the issue → implement on a branch `fix/issue-<N>-<slug>` (or `feat/...`) → verify with real searches on a throwaway server (`npm run start:test`, stopped by PID), since there's no type-check or test suite → commit ending `Fixes #<N>` → push → PR body starting `Closes #<N>` → move the card to **In review**. Spikes get an issue comment instead of a PR. Never merge; the user merges after review (`/merge-issue <N>`). Running `/tackle-project` counts as asking for the commit, push and PR.
 - IDs:
   - Project ID: `PVT_kwHOBZQit84BlhH6`
   - Status field ID: `PVTSSF_lAHOBZQit84BlhH6zhkNt3A`
@@ -71,5 +71,5 @@ Update those docs when you change behavior they describe.
 ## Conventions
 
 - NM English only. One row per printing; no quantity column (the user found it too cramped).
-- When running a throwaway test server, use another port (`PORT=3999 npm start`) and stop it by PID. Don't use `pkill -f "node server.js"`, which can kill the user's main server.
+- For a throwaway test server, use `npm run start:test` (port 3999, copies of the lists in `data-test/`) and stop it by PID (`lsof -t -iTCP:3999 -sTCP:LISTEN`). Don't use `pkill -f "node server.js"`, which can kill the user's main server.
 - When adding a store, first confirm whether its site displays cash or credit.
