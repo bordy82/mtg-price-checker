@@ -37,13 +37,18 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section id="list-panel" class="panel">
       <div class="panel-head">
         <h2><span id="list-title">My cards to sell</span> <span id="list-count" class="pill"></span></h2>
         <div class="panel-actions">
           <span id="updated" class="muted"></span>
           <button id="refresh" class="ghost">Refresh prices</button>
         </div>
+      </div>
+      <div id="move-bar" class="move-bar" hidden>
+        <span id="move-label">Move starred cards to</span>
+        <select id="move-to" aria-label="Store"></select>
+        <button id="move-btn" class="small">Move</button>
       </div>
       <div class="table-wrap">
         <table id="list" class="grid">
@@ -53,6 +58,7 @@
         </table>
       </div>
       <p id="list-empty" class="muted empty">Search for a card above and click <b>Add</b> on the version you own.</p>
+      <div id="store-lists"></div>
     </section>
   </main>
 
