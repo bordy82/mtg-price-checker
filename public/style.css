@@ -72,11 +72,6 @@ button.star.on { color: var(--accent); }
 .seg[hidden] { display: none; }
 .seg button { background: transparent; color: var(--muted); border-radius: 0; font-weight: 500; }
 .seg button.active { background: var(--ink); color: var(--panel); }
-.chips { display: inline-flex; align-items: center; gap: 8px; }
-/* Store names stay on one line; on narrow screens the chips wrap as a group instead. */
-#store-chips { flex-wrap: wrap; }
-#store-chips button { white-space: nowrap; }
-.chips-label { font-size: 13px; color: var(--muted); }
 
 .filters { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; align-items: center; }
 .filters .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -100,6 +95,12 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
   text-transform: uppercase; letter-spacing: .04em; padding: 8px 10px; border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
+/* Store headers are buttons (click to leave the store out) but look like plain header text. */
+.grid th .store-toggle {
+  background: none; border: 0; padding: 0; margin: 0; border-radius: 0;
+  font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer;
+}
+.grid th .store-toggle:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .grid td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .grid tbody tr:hover { background: color-mix(in srgb, var(--chip) 50%, transparent); }
 .grid th.num, .grid td.num { text-align: right; white-space: nowrap; }
