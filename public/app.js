@@ -27,13 +27,7 @@ const MODES = {
     better: (a, b) => a > b,
     alt: (p) => `${otherValue()} ${money(p[otherValue()])}`,
     totalLabel: () => `Total ${state.sellValue} if everything goes to…`,
-    mixNote: 'Best column = each card sold to its best store',
     missingLabel: (n) => `${n} not bought`,
-    // Compared with the best single store, even if it doesn't buy everything.
-    gainNote: (mix, perStore) => {
-      const bestSingle = Math.max(0, ...Object.values(perStore));
-      return mix > bestSingle ? `+${money(mix - bestSingle)} vs one store` : '';
-    },
   },
   buy: {
     subtitle: 'cheapest price per card',
@@ -44,15 +38,7 @@ const MODES = {
     better: (a, b) => a < b,
     alt: (p) => (p.stock > 0 ? `${p.stock} in stock` : 'out of stock'),
     totalLabel: () => 'Total cost if bought at…',
-    mixNote: 'Best column = each card bought where it’s cheapest in stock',
     missingLabel: (n) => `${n} unavailable`,
-    // Compared with the cheapest store that has every card in stock.
-    gainNote: (mix, perStore, missing) => {
-      const complete = Object.keys(perStore).filter((id) => !missing[id]).map((id) => perStore[id]);
-      if (!complete.length) return '';
-      const bestSingle = Math.min(...complete);
-      return mix < bestSingle ? `saves ${money(bestSingle - mix)} vs one store` : '';
-    },
   },
 };
 const cfg = () => MODES[state.view];
@@ -242,24 +228,21 @@ function renderList() {
   if (empty) return;
 
   table.querySelector('thead').innerHTML =
-    `<tr><th></th><th>Card</th>${storeHeaders()}<th>Best</th><th></th></tr>`;
+    `<tr><th></th><th>Card</th>${storeHeaders()}<th></th></tr>`;
 
   table.querySelector('tbody').innerHTML = list.map((item, idx) => {
     const best = bestStore(item.prices);
-    const bestLabel = best ? state.stores.find((s) => s.id === best).label : '—';
     return `<tr>
       ${thumb(item.image)}
       <td><div class="card-name">${esc(item.name)} ${printingTags(item)}</div>${printingLine(item)}</td>
       ${state.stores.map((s) => priceCell(item.prices, s.id, best)).join('')}
-      <td class="best-store">${esc(bestLabel)}</td>
       <td class="num"><button class="icon" data-remove="${idx}" title="Remove">✕</button></td>
     </tr>`;
   }).join('');
 
-  // Totals: everything at one store vs. each card at its best store (eligible offers only).
+  // Totals: everything at one store (eligible offers only).
   const perStore = {};
   const missing = {};
-  let bestMix = 0;
   for (const s of state.stores) { perStore[s.id] = 0; missing[s.id] = 0; }
   for (const item of list) {
     for (const s of state.stores) {
@@ -267,20 +250,18 @@ function renderList() {
       if (c.eligible(p)) perStore[s.id] += c.value(p);
       else missing[s.id] += 1;
     }
-    const best = bestStore(item.prices);
-    if (best) bestMix += c.value(item.prices[best]);
   }
 
   table.querySelector('tfoot').innerHTML = `
     <tr>
       <td></td><td>${esc(c.totalLabel())}</td>
       ${state.stores.map((s) => `<td class="num">${money(perStore[s.id])}</td>`).join('')}
-      <td class="best-store">${money(bestMix)}</td><td></td>
+      <td></td>
     </tr>
     <tr class="sub">
-      <td></td><td>${esc(c.mixNote)}</td>
+      <td></td><td></td>
       ${state.stores.map((s) => `<td class="num">${missing[s.id] ? esc(c.missingLabel(missing[s.id])) : ''}</td>`).join('')}
-      <td>${esc(c.gainNote(bestMix, perStore, missing))}</td><td></td>
+      <td></td>
     </tr>`;
 }
 

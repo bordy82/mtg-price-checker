@@ -22,7 +22,7 @@ Supported stores:
 - The best store per card is highlighted:
   - selling: the highest offer
   - buying: the cheapest copy **in stock** (sold-out prices are shown greyed and never win)
-- Totals for "everything at one store" versus "each card at its best store", and how much splitting gains or saves.
+- Totals for "everything at one store", with how many cards each store doesn't buy or doesn't have in stock.
 - Near Mint, English cards only.
 
 ## Getting started
