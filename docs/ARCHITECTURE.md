@@ -40,6 +40,7 @@ Every layer takes a `mode`:
 - **Cache**: in memory, 10 minutes, keyed by `mode|query`. Results with any store error are **not** cached, so the next search retries that store.
 - `POST /api/refresh` re-searches each distinct front name in the list (sequentially, `force: true`) and finds each item's row by `item.key ∈ row.keys`. Stores that failed keep their **last known prices** instead of being wiped.
 - Lists are written atomically (write `*.tmp`, then rename).
+- The lists live in `data/` unless `DATA_DIR` points elsewhere. `npm run start:test` copies both lists into `data-test/` and serves them on port 3999, so testing never touches the real files.
 - Errors are returned as JSON (`{ error }`), because the page always parses JSON.
 
 ### `stores/*.js` — adapters

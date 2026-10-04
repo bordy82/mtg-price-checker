@@ -5,7 +5,8 @@
   "description": "Compare MTG buylist and retail prices across Quebec game stores to get the most store credit or the best price.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:test": "mkdir -p data-test && cp data/list.json data/wishlist.json data-test/ 2>/dev/null; PORT=3999 DATA_DIR=data-test node server.js"
   },
   "dependencies": {
     "express": "^5.2.1"
