@@ -95,11 +95,11 @@ Turns each store's naming into comparable values:
    - buy: rows some store lists, cheapest in-stock first (rows sold out everywhere go last).
 
 ### `public/` — the page
-- `index.html` has the header (Selling | Buying, Store credit | Cash, and the Stores chips), the search panel, and the list panel.
+- `index.html` has the header (Selling | Buying, and Store credit | Cash), the search panel, and the list panel.
 - `app.js` keeps state in one object: `view`, `sellValue`, `results`, `filters`, `lists: { sell, buy }`, and `excluded: { sell, buy }` (stores left out of the comparison, per view).
   - Everything that differs by mode lives in the `MODES` config: the value read, eligibility, comparison, subtitle line, labels and totals note.
   - The rendering functions (`bestStore`, `priceCell`, `renderResults`, `renderList`) are shared.
-- Unticking a store chip adds it to `excluded` for the current view: `bestStore` skips it, so it never turns green, and its column (prices and totals) is dimmed but still shown. The chips are built from the store registry.
+- Clicking a store's column header (a `.store-toggle` button, in either table) adds it to `excluded` for the current view: `bestStore` skips it, so it never turns green, and its column (prices and totals) is dimmed but still shown. Clicking again removes it.
 - The chosen mode and the excluded stores are remembered in `localStorage` (`mtg-buylist:view`, `mtg-buylist:excluded`; unknown store ids are ignored). Lists are saved through the API after every add or remove.
 
 ## Data shapes

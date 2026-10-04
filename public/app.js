@@ -99,9 +99,16 @@ function priceCell(prices, storeId, best) {
     <span class="main">${money(v)}</span><span class="alt">${esc(alt(p))}</span></span></td>`;
 }
 
+// Clicking a store's header leaves it out of the comparison (its column dims); clicking again brings it back.
 function storeHeaders() {
   return state.stores
-    .map((s) => `<th class="${colClass(s.id)}" title="${state.view === 'sell' ? esc(s.creditNote) : ''}">${esc(s.label)}</th>`)
+    .map((s) => {
+      const included = isIncluded(s.id);
+      const hint = included ? 'Click to leave out of the comparison' : 'Click to compare again';
+      const title = state.view === 'sell' ? `${s.creditNote} · ${hint}` : hint;
+      return `<th class="${colClass(s.id)}"><button class="store-toggle" data-store="${esc(s.id)}"
+        aria-pressed="${included}" title="${esc(title)}">${esc(s.label)}</button></th>`;
+    })
     .join('');
 }
 
@@ -331,17 +338,10 @@ function applyView() {
   $('#value-switch').hidden = state.view !== 'sell';
   $('#subtitle').textContent = cfg().subtitle;
   document.body.dataset.view = state.view;
-  renderStoreChips();
   renderList();
 }
 
-// ---- store chips: which stores are compared (each view has its own set) ----
-
-function renderStoreChips() {
-  $('#store-chips').innerHTML = state.stores
-    .map((s) => `<button data-store="${esc(s.id)}" class="${isIncluded(s.id) ? 'active' : ''}" aria-pressed="${isIncluded(s.id)}">${esc(s.label)}</button>`)
-    .join('');
-}
+// ---- excluded stores: left out of the comparison (each view has its own set) ----
 
 function loadExcluded() {
   try {
@@ -474,14 +474,14 @@ document.querySelectorAll('[data-value]').forEach((b) =>
 
 $('#refresh').addEventListener('click', refreshPrices);
 
-$('#store-chips').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-store]');
+// Store headers in either table toggle that store for the current view; both tables re-render.
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.store-toggle');
   if (!b) return;
   const excluded = state.excluded[state.view];
   if (excluded.has(b.dataset.store)) excluded.delete(b.dataset.store);
   else excluded.add(b.dataset.store);
   saveExcluded();
-  renderStoreChips();
   renderList();
   if (state.results.length) renderResults();
 });
