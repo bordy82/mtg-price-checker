@@ -41,7 +41,7 @@ button, input { font: inherit; color: inherit; }
   padding: 18px 28px; border-bottom: 1px solid var(--line); background: var(--panel);
   position: sticky; top: 0; z-index: 5;
 }
-h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; }
+h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; white-space: nowrap; }
 h1 .sub { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
 h2 { font-size: 15px; margin: 0; }
 
@@ -72,6 +72,11 @@ button.star.on { color: var(--accent); }
 .seg[hidden] { display: none; }
 .seg button { background: transparent; color: var(--muted); border-radius: 0; font-weight: 500; }
 .seg button.active { background: var(--ink); color: var(--panel); }
+.chips { display: inline-flex; align-items: center; gap: 8px; }
+/* Store names stay on one line; on narrow screens the chips wrap as a group instead. */
+#store-chips { flex-wrap: wrap; }
+#store-chips button { white-space: nowrap; }
+.chips-label { font-size: 13px; color: var(--muted); }
 
 .filters { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; align-items: center; }
 .filters .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -128,6 +133,8 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
 .price.best .alt { color: inherit; opacity: .75; }
 .price.none { color: var(--muted); }
 .price.oos { color: var(--muted); opacity: .6; }
+/* A store left out of the comparison: its column stays readable but dimmed. */
+.grid .excluded { opacity: .4; }
 
 .add-cell { white-space: nowrap; text-align: right; }
 .added { color: var(--best-ink); font-size: 13px; font-weight: 600; }

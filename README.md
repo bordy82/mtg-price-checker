@@ -23,6 +23,7 @@ Supported stores:
 - The best store per card is highlighted:
   - selling: the highest offer
   - buying: the cheapest copy **in stock** (sold-out prices are shown greyed and never win)
+- Untick a store in the **Stores** chips to leave it out of the comparison (e.g. online-only stores when selling in person). Selling and Buying each remember their own choice.
 - Totals for "everything at one store", with how many cards each store doesn't buy or doesn't have in stock.
 - Near Mint, English cards only.
 
