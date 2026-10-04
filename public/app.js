@@ -325,7 +325,10 @@ function renderStoreLists(list) {
     if (!items.length) return '';
     const { thead, tbody, tfoot } = listTable(items, { chosen: s.id });
     return `<section class="store-list">
-      <h3>${esc(c.storeListTitle(s.label))} <span class="pill">${items.length} card${items.length === 1 ? '' : 's'}</span></h3>
+      <div class="store-list-head">
+        <h3>${esc(c.storeListTitle(s.label))} <span class="pill">${items.length} card${items.length === 1 ? '' : 's'}</span></h3>
+        <button class="ghost small" data-print="${esc(s.id)}">Print</button>
+      </div>
       <div class="table-wrap"><table class="grid"><thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
     </section>`;
   }).join('');
@@ -363,13 +366,60 @@ function totalRows(label, { perStore, missing }, cls = '', chosen = null) {
     </tr>`;
 }
 
-function renderUpdated() {
-  const times = currentList().map((i) => i.updatedAt).filter(Boolean);
-  if (!times.length) { $('#updated').textContent = ''; return; }
+// "Prices from 3 h ago": the age of the oldest prices among these cards, or '' if none are dated.
+function pricesAge(items) {
+  const times = items.map((i) => i.updatedAt).filter(Boolean);
+  if (!times.length) return '';
   const mins = Math.round((Date.now() - Math.min(...times)) / 60000);
   const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.round(mins / 60)} h ago` : `${Math.round(mins / 1440)} days ago`;
-  $('#updated').textContent = `Prices from ${ago}`;
+  return `Prices from ${ago}`;
 }
+
+function renderUpdated() {
+  $('#updated').textContent = pricesAge(currentList());
+}
+
+// ---- print a "Selling to <store>" list: that store's credit and cash only, whatever the switch says ----
+
+function printStoreList(storeId) {
+  const store = state.stores.find((s) => s.id === storeId);
+  const items = currentList().filter((item) => sellToOf(item) === storeId).sort(compareListItems);
+  if (!store || !items.length) return;
+
+  let credit = 0;
+  let cash = 0;
+  let notBought = 0;
+  const rows = items.map((item) => {
+    const p = item.prices?.[storeId];
+    const buys = p?.credit > 0 || p?.cash > 0;
+    if (buys) { credit += p.credit || 0; cash += p.cash || 0; } else notBought += 1;
+    const finish = item.finish === 'nonfoil' ? '' : item.finish.replace(/\b\w/g, (ch) => ch.toUpperCase());
+    const meta = [`${item.setName || item.setCode} · ${String(item.setCode).toUpperCase()} #${item.collectorNumber}`,
+      finish, ...item.treatments].filter(Boolean).join(' · ');
+    return `<tr>
+      <td><div class="ps-name">${esc(item.name)}</div><div class="ps-meta">${esc(meta)}</div></td>
+      <td class="num">${buys ? money(p.credit) : '—'}</td>
+      <td class="num">${buys ? money(p.cash) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  const info = [date, pricesAge(items), `${items.length} card${items.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+  $('#print-sheet').innerHTML = `
+    <h2>${esc(cfg().storeListTitle(store.label))}</h2>
+    <p class="ps-info">${esc(info)}</p>
+    <table>
+      <thead><tr><th>Card</th><th class="num">Credit</th><th class="num">Cash</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr><td>Total</td><td class="num">${money(credit)}</td><td class="num">${money(cash)}</td></tr>
+        ${notBought ? `<tr class="ps-note"><td colspan="3">${notBought} not bought by ${esc(store.label)}</td></tr>` : ''}
+      </tfoot>
+    </table>`;
+  window.print();
+}
+
+window.addEventListener('afterprint', () => { $('#print-sheet').innerHTML = ''; });
 
 async function refreshPrices() {
   const btn = $('#refresh');
@@ -539,6 +589,11 @@ document.querySelectorAll('[data-value]').forEach((b) =>
 );
 
 $('#refresh').addEventListener('click', refreshPrices);
+
+$('#store-lists').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-print]');
+  if (b) printStoreList(b.dataset.print);
+});
 
 $('#move-to').addEventListener('change', (e) => { state.moveTo = e.target.value; });
 

@@ -122,6 +122,8 @@ Turns each store's naming into comparable values:
 
 `sellTo: '<storeId>'` (sell list only) puts a card in a "Selling to <store>" section under the main list. "Move N starred cards to [store]" sets it on the main list's starred cards; unstarring a card in a section deletes both `starred` and `sellTo`, sending it back to the main list. Every table (main list and each section) is built by `listTable(items, { subtotal, chosen })`; `chosen` tints that store's column. An unknown `sellTo` counts as the main list.
 
+Each section's **Print** button fills the hidden `#print-sheet` with that store's list (name, set/number, finish and tags, that store's credit and cash, totals and a "not bought" count) and calls `window.print()`. The `@media print` rules print only `#print-sheet`, black on white; it's cleared on `afterprint`. Credit and cash are always both printed, whatever the Store credit / Cash switch says.
+
 `key` is the row's primary key when the item was added. Refresh finds the item again through `row.keys`, so it still
 matches if the row's primary key changes, for example when a store stops listing it.
 
