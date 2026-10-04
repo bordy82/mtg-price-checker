@@ -28,6 +28,7 @@ const MODES = {
     alt: (p) => `${otherValue()} ${money(p[otherValue()])}`,
     totalLabel: () => `Total ${state.sellValue} if everything goes to…`,
     missingLabel: (n) => `${n} not bought`,
+    starTitle: 'Star: actually selling this',
   },
   buy: {
     subtitle: 'cheapest price per card',
@@ -39,6 +40,7 @@ const MODES = {
     alt: (p) => (p.stock > 0 ? `${p.stock} in stock` : 'out of stock'),
     totalLabel: () => 'Total cost if bought at…',
     missingLabel: (n) => `${n} unavailable`,
+    starTitle: 'Star: actually buying this',
   },
 };
 const cfg = () => MODES[state.view];
@@ -228,15 +230,19 @@ function renderList() {
   if (empty) return;
 
   table.querySelector('thead').innerHTML =
-    `<tr><th></th><th>Card</th>${storeHeaders()}<th></th></tr>`;
+    `<tr><th></th><th></th><th>Card</th>${storeHeaders()}<th></th></tr>`;
 
-  table.querySelector('tbody').innerHTML = list.map((item, idx) => {
+  // Starred cards first; the sort is stable, so each group keeps the order cards were added.
+  const rows = [...list].sort((a, b) => Boolean(b.starred) - Boolean(a.starred));
+  table.querySelector('tbody').innerHTML = rows.map((item) => {
     const best = bestStore(item.prices);
+    const key = esc(item.key);
     return `<tr>
+      <td><button class="icon star${item.starred ? ' on' : ''}" data-star="${key}" title="${esc(c.starTitle)}" aria-pressed="${Boolean(item.starred)}">${item.starred ? '★' : '☆'}</button></td>
       ${thumb(item.image)}
       <td><div class="card-name">${esc(item.name)} ${printingTags(item)}</div>${printingLine(item)}</td>
       ${state.stores.map((s) => priceCell(item.prices, s.id, best)).join('')}
-      <td class="num"><button class="icon" data-remove="${idx}" title="Remove">✕</button></td>
+      <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -254,12 +260,12 @@ function renderList() {
 
   table.querySelector('tfoot').innerHTML = `
     <tr>
-      <td></td><td>${esc(c.totalLabel())}</td>
+      <td></td><td></td><td>${esc(c.totalLabel())}</td>
       ${state.stores.map((s) => `<td class="num">${money(perStore[s.id])}</td>`).join('')}
       <td></td>
     </tr>
     <tr class="sub">
-      <td></td><td></td>
+      <td></td><td></td><td></td>
       ${state.stores.map((s) => `<td class="num">${missing[s.id] ? esc(c.missingLabel(missing[s.id])) : ''}</td>`).join('')}
       <td></td>
     </tr>`;
@@ -356,10 +362,24 @@ $('#results').addEventListener('click', (e) => {
   addToList(b.dataset.add);
 });
 
+// Rows are found by key: starred cards are shown first, so row order differs from the saved order.
 $('#list').addEventListener('click', (e) => {
+  const list = currentList();
+  const star = e.target.closest('[data-star]');
+  if (star) {
+    const item = list.find((i) => i.key === star.dataset.star);
+    if (!item) return;
+    if (item.starred) delete item.starred;
+    else item.starred = true;
+    saveList();
+    renderList();
+    return;
+  }
   const b = e.target.closest('[data-remove]');
   if (!b) return;
-  currentList().splice(Number(b.dataset.remove), 1);
+  const idx = list.findIndex((i) => i.key === b.dataset.remove);
+  if (idx === -1) return;
+  list.splice(idx, 1);
   saveList();
   renderList();
   if (state.results.length) renderResults();
