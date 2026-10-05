@@ -66,6 +66,7 @@ button.icon { background: transparent; color: var(--muted); padding: 4px 8px; fo
 button.icon:hover { color: var(--accent); }
 button.star { padding: 4px 2px 4px 6px; font-size: 18px; line-height: 1; }
 button.star.on { color: var(--accent); }
+button.icon:disabled:hover { color: var(--muted); }
 
 .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
@@ -104,6 +105,11 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
 .grid td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .grid tbody tr:hover { background: color-mix(in srgb, var(--chip) 50%, transparent); }
 .grid th.num, .grid td.num { text-align: right; white-space: nowrap; }
+/* Quantity stepper in "Selling to <store>" lists. */
+.grid th.qty, .grid td.qty { text-align: center; white-space: nowrap; }
+.stepper { display: inline-flex; align-items: center; }
+.stepper button.icon { padding: 2px 6px; }
+.stepper .qty-n { min-width: 1.5em; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
 .grid tr.total td { border-bottom: 0; font-weight: 600; padding-top: 12px; }
 .grid tr.total.sub td { font-weight: 400; color: var(--muted); padding-top: 2px; font-size: 13px; }
 .grid tbody tr.total:hover { background: none; }
@@ -167,6 +173,7 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
   #print-sheet .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   #print-sheet .ps-name { font-weight: 600; }
   #print-sheet .ps-meta { font-size: 9pt; color: #444; }
+  #print-sheet .ps-each { font-size: 8pt; color: #444; }
   #print-sheet tfoot td { font-weight: 700; border-top: 1.5pt solid #000; border-bottom: 0; }
   #print-sheet tfoot .ps-note td { font-weight: 400; color: #444; border-top: 0; padding-top: 0; }
 }
