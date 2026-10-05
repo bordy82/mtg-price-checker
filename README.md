@@ -19,7 +19,7 @@ Supported stores:
 - Search a card by name and see every printing side by side across all stores. Printings are matched by set, collector number and finish.
 - Filter results by finish (non-foil, foil, etched) and version (normal, borderless, showcase, extended art…).
 - Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click.
-- Click a card's name (in the search results or any list) to copy it, ready to paste into a store's site. Two-name cards copy only the front name (`Clive Rosfield - Vial Smasher the Fierce` → `Clive Rosfield`), which every store's search finds.
+- Click a card's name (in the search results or any list) to copy it, ready to paste into a store's site; a small "✓ Copied" flashes next to it. Two-name cards copy only the front name (`Clive Rosfield - Vial Smasher the Fierce` → `Clive Rosfield`), which every store's search finds.
 - Lists are sorted by card name. Star the cards you're actually selling or buying: they're pinned to the top, with their own subtotal.
 - When selling, move the starred cards to a store: they go into a "Selling to <store>" list under the main one (all stores' offers still shown, that store highlighted). Unstar a card to send it back. Each card in a store list has a **− n +** quantity; the store totals count every copy. Each store list has a **Print** button for a printable sheet with that store's credit and cash prices (line totals per quantity).
 - When buying, move the starred wishlist cards into a list you name (e.g. "Check Lands"), or add them to one you already made. Each list is its own section under the wishlist, with its own totals. Unstar a card to send it back; a list disappears when its last card leaves.
