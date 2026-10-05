@@ -70,6 +70,6 @@ Update those docs when you change behavior they describe.
 
 ## Conventions
 
-- NM English only. One row per printing; no quantity column (the user found it too cramped).
+- NM English only. One row per printing. Quantities exist only in "Selling to <store>" lists (#24); the main list and wishlist have none (the user found a quantity column too cramped there).
 - For a throwaway test server, use `npm run start:test` (port 3999, copies of the lists in `data-test/`) and stop it by PID (`lsof -t -iTCP:3999 -sTCP:LISTEN`). Don't use `pkill -f "node server.js"`, which can kill the user's main server.
 - When adding a store, first confirm whether its site displays cash or credit.

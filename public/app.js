@@ -53,6 +53,14 @@ const isIncluded = (storeId) => !state.excluded[state.view].has(storeId);
 // Unticked stores keep their column, dimmed.
 const colClass = (storeId, chosen) =>
   `num${isIncluded(storeId) ? '' : ' excluded'}${storeId === chosen ? ' chosen' : ''}`;
+// Copies of a card in a "Selling to <store>" list (#24). Missing means 1.
+const qtyOf = (item) => Math.max(1, Math.floor(item.qty) || 1);
+// "19 cards", or "19 cards · 23 copies" once some card has more than one copy.
+function countText(items) {
+  const copies = items.reduce((n, item) => n + qtyOf(item), 0);
+  const cards = `${items.length} card${items.length === 1 ? '' : 's'}`;
+  return copies === items.length ? cards : `${cards} · ${copies} copies`;
+}
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -275,7 +283,9 @@ function compareListItems(a, b) {
 
 // One list table: starred cards first, an optional starred subtotal, and per-store totals.
 // `chosen` highlights one store's column (the store a "Selling to" list is for).
-function listTable(items, { subtotal = false, chosen = null } = {}) {
+// `qty` adds a quantity stepper column (store lists only); totals then count every copy,
+// while the price cells (and the green "best") stay per copy.
+function listTable(items, { subtotal = false, chosen = null, qty = false } = {}) {
   const c = cfg();
   const rows = [...items].sort(compareListItems);
   const html = rows.map((item) => {
@@ -285,6 +295,7 @@ function listTable(items, { subtotal = false, chosen = null } = {}) {
       <td><button class="icon star${item.starred ? ' on' : ''}" data-star="${key}" title="${esc(c.starTitle)}" aria-pressed="${Boolean(item.starred)}">${item.starred ? '★' : '☆'}</button></td>
       ${thumb(item.image)}
       <td><div class="card-name">${esc(item.name)} ${printingTags(item)}</div>${printingLine(item)}</td>
+      ${qty ? qtyCell(item) : ''}
       ${state.stores.map((s) => priceCell(item.prices, s.id, best, chosen)).join('')}
       <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
     </tr>`;
@@ -295,13 +306,25 @@ function listTable(items, { subtotal = false, chosen = null } = {}) {
   if (subtotal && starred.length && starred.length < rows.length) {
     const label = c.totalLabel();
     html.splice(starred.length, 0,
-      totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred), 'starred'));
+      totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred, { perCopy: qty }),
+        { cls: 'starred', qty }));
   }
   return {
-    thead: `<tr><th></th><th></th><th>Card</th>${storeHeaders(chosen)}<th></th></tr>`,
+    thead: `<tr><th></th><th></th><th>Card</th>${qty ? '<th class="qty">Qty</th>' : ''}${storeHeaders(chosen)}<th></th></tr>`,
     tbody: html.join(''),
-    tfoot: totalRows(c.totalLabel(), listTotals(items), '', chosen),
+    tfoot: totalRows(c.totalLabel(), listTotals(items, { perCopy: qty }), { chosen, qty }),
   };
+}
+
+// − n + : − stops at 1 (removing a card stays the ✕'s job).
+function qtyCell(item) {
+  const key = esc(item.key);
+  const n = qtyOf(item);
+  return `<td class="qty"><span class="stepper">
+    <button class="icon" data-qty="${key}" data-step="-1" title="One copy fewer"${n <= 1 ? ' disabled' : ''}>−</button>
+    <span class="qty-n">${n}</span>
+    <button class="icon" data-qty="${key}" data-step="1" title="One more copy">+</button>
+  </span></td>`;
 }
 
 // "Move starred cards to [store]": shown in Selling when the main list has starred cards.
@@ -323,10 +346,10 @@ function renderStoreLists(list) {
   $('#store-lists').innerHTML = state.stores.map((s) => {
     const items = list.filter((item) => sellToOf(item) === s.id);
     if (!items.length) return '';
-    const { thead, tbody, tfoot } = listTable(items, { chosen: s.id });
+    const { thead, tbody, tfoot } = listTable(items, { chosen: s.id, qty: true });
     return `<section class="store-list">
       <div class="store-list-head">
-        <h3>${esc(c.storeListTitle(s.label))} <span class="pill">${items.length} card${items.length === 1 ? '' : 's'}</span></h3>
+        <h3>${esc(c.storeListTitle(s.label))} <span class="pill">${esc(countText(items))}</span></h3>
         <button class="ghost small" data-print="${esc(s.id)}">Print</button>
       </div>
       <div class="table-wrap"><table class="grid"><thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
@@ -335,32 +358,36 @@ function renderStoreLists(list) {
 }
 
 // Per-store totals for some cards: everything at one store (eligible offers only).
-function listTotals(items) {
+// `perCopy` multiplies by each card's quantity, for prices and for the missing count (store lists).
+function listTotals(items, { perCopy = false } = {}) {
   const { eligible, value } = cfg();
   const perStore = {};
   const missing = {};
   for (const s of state.stores) { perStore[s.id] = 0; missing[s.id] = 0; }
   for (const item of items) {
+    const n = perCopy ? qtyOf(item) : 1;
     for (const s of state.stores) {
       const p = item.prices?.[s.id];
-      if (eligible(p)) perStore[s.id] += value(p);
-      else missing[s.id] += 1;
+      if (eligible(p)) perStore[s.id] += value(p) * n;
+      else missing[s.id] += n;
     }
   }
   return { perStore, missing };
 }
 
 // Two rows: the total per store, then how many cards each store doesn't buy / have in stock.
-function totalRows(label, { perStore, missing }, cls = '', chosen = null) {
+// `qty` adds the empty cell under the Qty column so the store columns stay aligned.
+function totalRows(label, { perStore, missing }, { cls = '', chosen = null, qty = false } = {}) {
   const { missingLabel } = cfg();
+  const qtyGap = qty ? '<td></td>' : '';
   return `
     <tr class="total ${cls}">
-      <td></td><td></td><td>${esc(label)}</td>
+      <td></td><td></td><td>${esc(label)}</td>${qtyGap}
       ${state.stores.map((s) => `<td class="${colClass(s.id, chosen)}">${money(perStore[s.id])}</td>`).join('')}
       <td></td>
     </tr>
     <tr class="total sub ${cls}">
-      <td></td><td></td><td></td>
+      <td></td><td></td><td></td>${qtyGap}
       ${state.stores.map((s) => `<td class="${colClass(s.id, chosen)}">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}
       <td></td>
     </tr>`;
@@ -391,29 +418,33 @@ function printStoreList(storeId) {
   let notBought = 0;
   const rows = items.map((item) => {
     const p = item.prices?.[storeId];
+    const n = qtyOf(item);
     const buys = p?.credit > 0 || p?.cash > 0;
-    if (buys) { credit += p.credit || 0; cash += p.cash || 0; } else notBought += 1;
+    if (buys) { credit += (p.credit || 0) * n; cash += (p.cash || 0) * n; } else notBought += n;
+    // Line total (qty × unit), with the unit price under it when there's more than one copy.
+    const line = (unit) => (buys && unit ? `${money(unit * n)}${n > 1 ? `<div class="ps-each">${money(unit)} each</div>` : ''}` : '—');
     const finish = item.finish === 'nonfoil' ? '' : item.finish.replace(/\b\w/g, (ch) => ch.toUpperCase());
     const meta = [`${item.setName || item.setCode} · ${String(item.setCode).toUpperCase()} #${item.collectorNumber}`,
       finish, ...item.treatments].filter(Boolean).join(' · ');
     return `<tr>
       <td><div class="ps-name">${esc(item.name)}</div><div class="ps-meta">${esc(meta)}</div></td>
-      <td class="num">${buys ? money(p.credit) : '—'}</td>
-      <td class="num">${buys ? money(p.cash) : '—'}</td>
+      <td class="num">${n}</td>
+      <td class="num">${line(p?.credit)}</td>
+      <td class="num">${line(p?.cash)}</td>
     </tr>`;
   }).join('');
 
   const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  const info = [date, pricesAge(items), `${items.length} card${items.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+  const info = [date, pricesAge(items), countText(items)].filter(Boolean).join(' · ');
   $('#print-sheet').innerHTML = `
     <h2>${esc(cfg().storeListTitle(store.label))}</h2>
     <p class="ps-info">${esc(info)}</p>
     <table>
-      <thead><tr><th>Card</th><th class="num">Credit</th><th class="num">Cash</th></tr></thead>
+      <thead><tr><th>Card</th><th class="num">Qty</th><th class="num">Credit</th><th class="num">Cash</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        <tr><td>Total</td><td class="num">${money(credit)}</td><td class="num">${money(cash)}</td></tr>
-        ${notBought ? `<tr class="ps-note"><td colspan="3">${notBought} not bought by ${esc(store.label)}</td></tr>` : ''}
+        <tr><td>Total</td><td></td><td class="num">${money(credit)}</td><td class="num">${money(cash)}</td></tr>
+        ${notBought ? `<tr class="ps-note"><td colspan="4">${notBought} not bought by ${esc(store.label)}</td></tr>` : ''}
       </tfoot>
     </table>`;
   window.print();
@@ -550,7 +581,7 @@ $('#results').addEventListener('click', (e) => {
   addToList(b.dataset.add);
 });
 
-// Star / remove in the main list and in every store list. Rows are found by key: starred cards are
+// Star / quantity / remove in the main list and in every store list. Rows are found by key: starred cards are
 // shown first, and cards are split across lists, so row order differs from the saved order.
 $('#list-panel').addEventListener('click', (e) => {
   const list = currentList();
@@ -559,10 +590,20 @@ $('#list-panel').addEventListener('click', (e) => {
     const item = list.find((i) => i.key === star.dataset.star);
     if (!item) return;
     if (item.starred) {
-      // Unstarring a card in a store list also sends it back to the main list.
+      // Unstarring a card in a store list also sends it back to the main list, with no quantity.
       delete item.starred;
       delete item.sellTo;
+      delete item.qty;
     } else item.starred = true;
+    saveList();
+    renderList();
+    return;
+  }
+  const step = e.target.closest('[data-qty]');
+  if (step) {
+    const item = list.find((i) => i.key === step.dataset.qty);
+    if (!item) return;
+    item.qty = Math.max(1, qtyOf(item) + Number(step.dataset.step));
     saveList();
     renderList();
     return;

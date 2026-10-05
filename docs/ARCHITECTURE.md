@@ -115,20 +115,22 @@ Turns each store's naming into comparable values:
   prices: { [storeId]: { cash, credit, retail } | { price, stock } } }
 
 // List item — saved in data/list.json or data/wishlist.json
-{ key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred?, sellTo? }
+{ key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred?, sellTo?, qty? }
 ```
 
 `starred: true` marks a card the user is actually selling or buying. The page shows starred cards first, then sorts each group by card name (then set, collector number and finish) with `compareListItems`. It sorts a copy, so the saved order is unchanged, and its list buttons find items by `key`, not by row position. When some (not all) cards are starred, a subtotal for the starred cards sits under the last one, built with the same `listTotals` / `totalRows` helpers as the footer.
 
-`sellTo: '<storeId>'` (sell list only) puts a card in a "Selling to <store>" section under the main list. "Move N starred cards to [store]" sets it on the main list's starred cards; unstarring a card in a section deletes both `starred` and `sellTo`, sending it back to the main list. Every table (main list and each section) is built by `listTable(items, { subtotal, chosen })`; `chosen` tints that store's column. An unknown `sellTo` counts as the main list.
+`sellTo: '<storeId>'` (sell list only) puts a card in a "Selling to <store>" section under the main list. "Move N starred cards to [store]" sets it on the main list's starred cards; unstarring a card in a section deletes `starred`, `sellTo` and `qty`, sending it back to the main list. Every table (main list and each section) is built by `listTable(items, { subtotal, chosen, qty })`; `chosen` tints that store's column. An unknown `sellTo` counts as the main list.
 
-Each section's **Print** button fills the hidden `#print-sheet` with that store's list (name, set/number, finish and tags, that store's credit and cash, totals and a "not bought" count) and calls `window.print()`. The `@media print` rules print only `#print-sheet`, black on white; it's cleared on `afterprint`. Credit and cash are always both printed, whatever the Store credit / Cash switch says.
+`qty` (integer ≥ 1, missing = 1) is the number of copies of a card in a "Selling to <store>" section. Sections pass `qty: true` to `listTable`, which adds a Qty column with a − / + stepper (− is disabled at 1; removing stays the ✕'s job), and an empty cell in `totalRows` so columns stay aligned. Their totals use `listTotals(items, { perCopy: true })`: each store's total is Σ price × qty and "N not bought" counts copies. The price cells and the green "best" still compare one copy. The section's pill shows `N cards · M copies` once some card has more than one. `/api/refresh` updates items in place, so `qty` survives it.
+
+Each section's **Print** button fills the hidden `#print-sheet` with that store's list (name, set/number, finish and tags, quantity, that store's credit and cash as line totals with the unit price under them when qty > 1, totals and a "not bought" count by copies, and cards · copies in the header) and calls `window.print()`. The `@media print` rules print only `#print-sheet`, black on white; it's cleared on `afterprint`. Credit and cash are always both printed, whatever the Store credit / Cash switch says.
 
 `key` is the row's primary key when the item was added. Refresh finds the item again through `row.keys`, so it still
 matches if the row's primary key changes, for example when a store stops listing it.
 
 ## Limits and known gaps
-- Near Mint, English only. No quantities: one row per printing.
+- Near Mint, English only. One row per printing. Only "Selling to <store>" lists have a quantity (`qty`).
 - Refresh is sequential per card name. A long list takes a few seconds per distinct card.
 - Game Keeper has no collector numbers, so a few ambiguous printings stay unmerged. Its server is also flaky; requests retry 4 times with backoff.
 - Prerelease and promo printings are coded differently by each store and sometimes don't merge (e.g. F2F `PFIN 253s` vs CE `PRE 253`). Game Keeper files some promos under catch-all sets ("Miscellaneous Promos"), so those can't be matched.
