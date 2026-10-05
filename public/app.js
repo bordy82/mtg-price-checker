@@ -7,6 +7,7 @@ const state = {
   lists: { sell: [], buy: [] },
   excluded: { sell: new Set(), buy: new Set() }, // stores left out of the comparison, per view
   moveTo: { sell: null, buy: null }, // sub-list picked in "Move starred cards to", per view ('' = new wishlist list)
+  refreshing: new Set(), // price refreshes running, as `${view}:${sub-list id}` ('' = the whole list)
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -56,7 +57,7 @@ const MODES = {
     groupOf: (item) => (typeof item.group === 'string' && item.group.trim() ? item.group : null),
     setGroup: (item, name) => { item.group = name; },
     groups: () => [...new Set(state.lists.buy.map((item) => MODES.buy.groupOf(item)).filter(Boolean))].sort(byText)
-      .map((name) => ({ id: name, label: name, title: name })),
+      .map((name) => ({ id: name, label: name, title: name, refresh: true })),
     moveTarget: 'List',
     newGroup: true,
   },
@@ -274,7 +275,9 @@ function renderList() {
   $('#list-empty').innerHTML = c.emptyText;
   $('#list-empty').hidden = list.length > 0;
   table.hidden = !main.length;
-  $('#refresh').disabled = !list.length;
+  const refreshing = state.refreshing.has(`${state.view}:`);
+  $('#refresh').disabled = !list.length || refreshing;
+  $('#refresh').textContent = refreshing ? 'Refreshing…' : 'Refresh prices';
   $('#list-count').textContent = main.length ? `${main.length} card${main.length === 1 ? '' : 's'}` : '';
   renderUpdated();
   renderMoveBar(main);
@@ -381,10 +384,19 @@ function renderSubLists(list) {
     const items = list.filter((item) => groupOf(item) === g.id);
     if (!items.length) return '';
     const { thead, tbody, tfoot } = listTable(items, { chosen: g.chosen, qty: g.qty });
+    const refreshing = state.refreshing.has(`${state.view}:${g.id}`);
+    // Wishlist lists (#33) refresh on their own and show their own prices' age.
+    const refresh = g.refresh
+      ? `<span class="muted" data-age="${esc(g.id)}">${esc(pricesAge(items))}</span>
+        <button class="ghost small" data-refresh="${esc(g.id)}"${refreshing ? ' disabled' : ''}>${refreshing ? 'Refreshing…' : 'Refresh'}</button>`
+      : '';
     return `<section class="sub-list">
       <div class="sub-list-head">
         <h3>${esc(g.title)} <span class="pill">${esc(countText(items))}</span></h3>
-        ${g.print ? `<button class="ghost small" data-print="${esc(g.id)}">Print</button>` : ''}
+        <div class="panel-actions">
+          ${refresh}
+          ${g.print ? `<button class="ghost small" data-print="${esc(g.id)}">Print</button>` : ''}
+        </div>
       </div>
       <div class="table-wrap"><table class="grid"><thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
     </section>`;
@@ -438,6 +450,9 @@ function pricesAge(items) {
 
 function renderUpdated() {
   $('#updated').textContent = pricesAge(currentList());
+  for (const el of document.querySelectorAll('[data-age]')) {
+    el.textContent = pricesAge(currentList().filter((item) => groupOf(item) === el.dataset.age));
+  }
 }
 
 // ---- print a "Selling to <store>" list: that store's credit and cash only, whatever the switch says ----
@@ -486,15 +501,27 @@ function printStoreList(storeId) {
 
 window.addEventListener('afterprint', () => { $('#print-sheet').innerHTML = ''; });
 
-async function refreshPrices() {
-  const btn = $('#refresh');
+// Refresh the whole list, or one sub-list's cards (`groupId`, a wishlist list, #33).
+async function refreshPrices(groupId = '') {
   const view = state.view;
-  btn.disabled = true;
-  btn.textContent = 'Refreshing…';
+  const running = `${view}:${groupId}`;
+  if (state.refreshing.has(running)) return;
+  const keys = groupId ? currentList().filter((item) => groupOf(item) === groupId).map((item) => item.key) : null;
+  state.refreshing.add(running);
+  renderList();
   try {
-    const { list, errors } = await api(`/api/refresh?mode=${view}`, { method: 'POST' });
-    state.lists[view] = list;
-    if (view === state.view) renderList();
+    const { list, errors } = await api(`/api/refresh?mode=${view}`, {
+      method: 'POST',
+      body: keys ? JSON.stringify({ keys }) : undefined,
+    });
+    // Take only the new prices: anything changed on the page meanwhile (star, move, remove, add) stays.
+    const fresh = new Map(list.map((item) => [item.key, item]));
+    for (const item of state.lists[view]) {
+      const f = fresh.get(item.key);
+      if (f) { item.prices = f.prices; item.updatedAt = f.updatedAt; }
+    }
+    // A save sent while the server was writing could have put the old prices back on disk; this fixes that.
+    saveList(view);
     const failed = Object.keys(errors || {});
     if (failed.length) {
       const names = failed.map((id) => state.stores.find((s) => s.id === id)?.label || id);
@@ -503,8 +530,8 @@ async function refreshPrices() {
   } catch (err) {
     alert(err.message);
   } finally {
-    btn.textContent = 'Refresh prices';
-    btn.disabled = !currentList().length;
+    state.refreshing.delete(running);
+    if (view === state.view) renderList();
   }
 }
 
@@ -717,11 +744,13 @@ document.querySelectorAll('[data-value]').forEach((b) =>
   })
 );
 
-$('#refresh').addEventListener('click', refreshPrices);
+$('#refresh').addEventListener('click', () => refreshPrices());
 
 $('#sub-lists').addEventListener('click', (e) => {
   const b = e.target.closest('[data-print]');
   if (b) printStoreList(b.dataset.print);
+  const r = e.target.closest('[data-refresh]');
+  if (r) refreshPrices(r.dataset.refresh);
 });
 
 $('#move-to').addEventListener('change', (e) => {
