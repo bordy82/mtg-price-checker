@@ -86,12 +86,13 @@ app.put('/api/list', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Re-fetch prices for every card in the saved list.
+// Re-fetch prices for every card in the saved list, or only for `keys` (one wishlist list, #33).
 app.post('/api/refresh', async (req, res) => {
   const mode = modeOf(req);
-  const list = await readList(mode);
+  const only = Array.isArray(req.body?.keys) ? new Set(req.body.keys) : null;
+  const picked = (item) => !only || only.has(item.key);
   // Search by front name: stores spell the rest of two-name cards differently.
-  const names = [...new Set(list.map((item) => frontName(item.name)))];
+  const names = [...new Set((await readList(mode)).filter(picked).map((item) => frontName(item.name)))];
   const errors = {};
   const byName = new Map();
   for (const name of names) {
@@ -100,8 +101,13 @@ app.post('/api/refresh', async (req, res) => {
     Object.assign(errors, result.errors);
   }
 
+  // The searches take a while and the page keeps saving meanwhile (star, move, remove…), so re-read the list
+  // and only update the prices of the refreshed cards; everything else stays as it is on disk now.
+  // Cards added since (their name wasn't searched) are left alone.
+  const list = await readList(mode);
   const now = Date.now();
   for (const item of list) {
+    if (!picked(item) || !byName.has(frontName(item.name))) continue;
     const match = byName.get(frontName(item.name))?.find((p) => p.keys.includes(item.key));
     const fresh = match ? { ...match.prices } : {};
     // Keep the last known prices of stores that couldn't be reached this time.
