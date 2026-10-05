@@ -579,11 +579,11 @@ window.addEventListener('scroll', hidePreview, { passive: true });
 // ---- copy a card name (#25) ----
 
 // The Clipboard API needs a secure context: http://localhost is one, but the page opened from a phone
-// through the machine's LAN address isn't, so fall back to selecting a hidden textarea.
+// through the machine's LAN address isn't, so fall back to selecting a hidden textarea. Returns whether it copied.
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
-    return;
+    return true;
   } catch {}
   const focused = document.activeElement;
   const area = document.createElement('textarea');
@@ -592,14 +592,41 @@ async function copyText(text) {
   area.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0;';
   document.body.append(area);
   area.select();
-  try { document.execCommand('copy'); } catch {}
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch {}
   area.remove();
   focused?.focus();
+  return ok;
 }
 
-document.addEventListener('click', (e) => {
+// "Copied" right after the clicked name for 1.5 s, then it fades out (#32). Clicking again restarts it.
+// A re-render (star, qty, remove…) drops it early; that's fine.
+const copiedLabels = new WeakMap(); // name button -> { label, timer }
+
+function showCopied(button, ok) {
+  let shown = copiedLabels.get(button);
+  if (shown) clearTimeout(shown.timer);
+  else {
+    shown = { label: document.createElement('span') };
+    shown.label.className = 'copied';
+    shown.label.setAttribute('role', 'status');
+    button.after(shown.label);
+    copiedLabels.set(button, shown);
+  }
+  shown.label.textContent = ok ? '✓ Copied' : "Couldn't copy";
+  shown.label.classList.remove('fading');
+  shown.timer = setTimeout(() => {
+    shown.label.classList.add('fading');
+    shown.timer = setTimeout(() => {
+      shown.label.remove();
+      copiedLabels.delete(button);
+    }, 300);
+  }, 1500);
+}
+
+document.addEventListener('click', async (e) => {
   const b = e.target.closest('.copy-name');
-  if (b) copyText(b.dataset.copy);
+  if (b) showCopied(b, await copyText(b.dataset.copy));
 });
 
 // ---- events ----
