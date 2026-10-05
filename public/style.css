@@ -148,12 +148,15 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
 
 .move-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; font-size: 14px; }
 .move-bar[hidden] { display: none; }
-.move-bar select {
-  border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--panel); color: var(--ink);
+.move-bar select, .move-bar input {
+  border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--panel); color: var(--ink); font: inherit;
 }
-.store-list { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
-.store-list h3 { font-size: 15px; margin: 0; }
-.store-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.move-bar input { width: 16em; }
+.move-bar input[hidden] { display: none; }
+/* Sub-lists under the main list: "Selling to <store>" sections and wishlist lists. */
+.sub-list { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
+.sub-list h3 { font-size: 15px; margin: 0; }
+.sub-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 /* Printing a "Selling to <store>" list: only #print-sheet is printed, black on white. */
 #print-sheet { display: none; }

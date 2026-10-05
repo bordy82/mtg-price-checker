@@ -41,7 +41,7 @@ Update those docs when you change behavior they describe.
   - Versions are compared by core words (`coreVersions`). Serialized copies (`…z` number or a "serial" label, see `isSerialized`) are kept apart from regular ones.
   - Prefer leaving a listing unmerged over risking a wrong merge.
 - `lib/normalize.js`: name, finish, treatment and set-name normalization. Searches use `frontName()` because stores join two-name cards differently (`A // B` vs `A - B`).
-- `public/app.js`: vanilla JS. Everything that differs between Selling and Buying lives in the `MODES` config. Keep the rendering code shared.
+- `public/app.js`: vanilla JS. Everything that differs between Selling and Buying lives in the `MODES` config, including how sub-lists ("Selling to <store>", wishlist lists) are grouped. Keep the rendering code shared.
 
 ## Store quirks (verified; re-check before changing)
 

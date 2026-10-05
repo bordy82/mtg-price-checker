@@ -21,6 +21,7 @@ Supported stores:
 - Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click.
 - Lists are sorted by card name. Star the cards you're actually selling or buying: they're pinned to the top, with their own subtotal.
 - When selling, move the starred cards to a store: they go into a "Selling to <store>" list under the main one (all stores' offers still shown, that store highlighted). Unstar a card to send it back. Each card in a store list has a **− n +** quantity; the store totals count every copy. Each store list has a **Print** button for a printable sheet with that store's credit and cash prices (line totals per quantity).
+- When buying, move the starred wishlist cards into a list you name (e.g. "Check Lands"), or add them to one you already made. Each list is its own section under the wishlist, with its own totals. Unstar a card to send it back; a list disappears when its last card leaves.
 - The best store per card is highlighted:
   - selling: the highest offer
   - buying: the cheapest copy **in stock** (sold-out prices are shown greyed and never win)
