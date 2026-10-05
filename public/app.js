@@ -99,6 +99,16 @@ function printingTags(p) {
   return finish + treatments;
 }
 
+// Front face name, what the server searches stores with: stores write two-name cards differently
+// (`A // B` vs `A - B`), so only the front name works everywhere. Keep in sync with frontName() in lib/normalize.js.
+const frontName = (name) => String(name || '').split(/ \/\/ | - /)[0].trim();
+
+// The card name, as a button that copies its front name (#25).
+function nameButton(name) {
+  const front = frontName(name);
+  return `<button type="button" class="copy-name" data-copy="${esc(front)}" title="${esc(`Click to copy "${front}"`)}">${esc(name)}</button>`;
+}
+
 function printingLine(p) {
   return `<div class="printing">${esc(p.setName || p.setCode)} · ${esc(String(p.setCode).toUpperCase())} #${esc(p.collectorNumber)}</div>`;
 }
@@ -223,7 +233,7 @@ function renderResults() {
         const inList = currentList().find((i) => p.keys.includes(i.key));
         return `<tr>
           ${thumb(p.image)}
-          <td><div class="card-name">${esc(p.name)}</div>${printingLine(p)}</td>
+          <td><div class="card-name">${nameButton(p.name)}</div>${printingLine(p)}</td>
           <td>${printingTags(p) || '<span class="muted">Normal</span>'}</td>
           ${state.stores.map((s) => priceCell(p.prices, s.id, best)).join('')}
           <td class="add-cell">
@@ -305,7 +315,7 @@ function listTable(items, { subtotal = false, chosen = null, qty = false } = {})
     return `<tr>
       <td><button class="icon star${item.starred ? ' on' : ''}" data-star="${key}" title="${esc(c.starTitle)}" aria-pressed="${Boolean(item.starred)}">${item.starred ? '★' : '☆'}</button></td>
       ${thumb(item.image)}
-      <td><div class="card-name">${esc(item.name)} ${printingTags(item)}</div>${printingLine(item)}</td>
+      <td><div class="card-name">${nameButton(item.name)} ${printingTags(item)}</div>${printingLine(item)}</td>
       ${qty ? qtyCell(item) : ''}
       ${state.stores.map((s) => priceCell(item.prices, s.id, best, chosen)).join('')}
       <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
@@ -565,6 +575,32 @@ document.addEventListener('mouseover', (e) => {
 });
 document.documentElement.addEventListener('mouseleave', hidePreview);
 window.addEventListener('scroll', hidePreview, { passive: true });
+
+// ---- copy a card name (#25) ----
+
+// The Clipboard API needs a secure context: http://localhost is one, but the page opened from a phone
+// through the machine's LAN address isn't, so fall back to selecting a hidden textarea.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {}
+  const focused = document.activeElement;
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0;';
+  document.body.append(area);
+  area.select();
+  try { document.execCommand('copy'); } catch {}
+  area.remove();
+  focused?.focus();
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.copy-name');
+  if (b) copyText(b.dataset.copy);
+});
 
 // ---- events ----
 
