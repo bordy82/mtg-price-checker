@@ -97,7 +97,7 @@ Turns each store's naming into comparable values:
 ### `public/` — the page
 - `index.html` has the header (Selling | Buying, and Store credit | Cash), the search panel, and the list panel.
 - `app.js` keeps state in one object: `view`, `sellValue`, `results`, `filters`, `lists: { sell, buy }`, and `excluded: { sell, buy }` (stores left out of the comparison, per view).
-  - Everything that differs by mode lives in the `MODES` config: the value read, eligibility, comparison, subtitle line, labels and totals note.
+  - Everything that differs by mode lives in the `MODES` config: the value read, eligibility, comparison, subtitle line, labels and totals note, and how sub-lists are grouped (`groupOf`, `setGroup`, `groups`).
   - The rendering functions (`bestStore`, `priceCell`, `renderResults`, `renderList`) are shared.
 - Clicking a store's column header (a `.store-toggle` button, in either table) adds it to `excluded` for the current view: `bestStore` skips it, so it never turns green, and its column (prices and totals) is dimmed but still shown. Clicking again removes it.
 - The chosen mode and the excluded stores are remembered in `localStorage` (`mtg-buylist:view`, `mtg-buylist:excluded`; unknown store ids are ignored). Lists are saved through the API after every add or remove.
@@ -115,12 +115,15 @@ Turns each store's naming into comparable values:
   prices: { [storeId]: { cash, credit, retail } | { price, stock } } }
 
 // List item — saved in data/list.json or data/wishlist.json
-{ key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred?, sellTo?, qty? }
+{ key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred?, sellTo?, qty?, group? }
 ```
 
 `starred: true` marks a card the user is actually selling or buying. The page shows starred cards first, then sorts each group by card name (then set, collector number and finish) with `compareListItems`. It sorts a copy, so the saved order is unchanged, and its list buttons find items by `key`, not by row position. When some (not all) cards are starred, a subtotal for the starred cards sits under the last one, built with the same `listTotals` / `totalRows` helpers as the footer.
 
-`sellTo: '<storeId>'` (sell list only) puts a card in a "Selling to <store>" section under the main list. "Move N starred cards to [store]" sets it on the main list's starred cards; unstarring a card in a section deletes `starred`, `sellTo` and `qty`, sending it back to the main list. Every table (main list and each section) is built by `listTable(items, { subtotal, chosen, qty })`; `chosen` tints that store's column. An unknown `sellTo` counts as the main list.
+**Sub-lists** are sections under the main list that starred cards are moved into. Each mode's `MODES` entry says how: `groupOf(item)` (the sub-list a card is in, or null for the main list), `setGroup(item, id)`, and `groups()` (the sub-lists, in display order, each `{ id, label, title, chosen?, qty?, print? }`; `label` is the move bar's option text). `renderMoveBar()` and `renderSubLists()` are shared. "Move N starred cards to [sub-list]" sets the group on the main list's starred cards; unstarring a card in a section deletes `starred`, `sellTo`, `group` and `qty`, sending it back to the main list. Every table (main list and each section) is built by `listTable(items, { subtotal, chosen, qty })`; `chosen` tints that store's column.
+
+- **Selling**: `sellTo: '<storeId>'` puts a card in a "Selling to <store>" section, one per store in store order, with that store's column tinted, a quantity and a Print button. An unknown `sellTo` counts as the main list.
+- **Buying** (#27): `group: '<name>'` puts a wishlist card in a list the user named (e.g. "Check Lands"). Lists are the distinct `group` values, sorted by name; a list exists while it has cards. The move bar offers the existing lists, then "New list…" (option value `''`), which shows the `#move-name` field; Move is disabled until it has a name. A new name matching an existing list (trimmed, any case, via `byText`) adds to that list. These sections have no tint, no quantity and no Print button.
 
 `qty` (integer ≥ 1, missing = 1) is the number of copies of a card in a "Selling to <store>" section. Sections pass `qty: true` to `listTable`, which adds a Qty column with a − / + stepper (− is disabled at 1; removing stays the ✕'s job), and an empty cell in `totalRows` so columns stay aligned. Their totals use `listTotals(items, { perCopy: true })`: each store's total is Σ price × qty and "N not bought" counts copies. The price cells and the green "best" still compare one copy. The section's pill shows `N cards · M copies` once some card has more than one. `/api/refresh` updates items in place, so `qty` survives it.
 

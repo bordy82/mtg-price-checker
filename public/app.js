@@ -6,7 +6,7 @@ const state = {
   filters: { finish: 'all', treatments: new Set() },
   lists: { sell: [], buy: [] },
   excluded: { sell: new Set(), buy: new Set() }, // stores left out of the comparison, per view
-  moveTo: null, // store picked in "Move starred cards to"
+  moveTo: { sell: null, buy: null }, // sub-list picked in "Move starred cards to", per view ('' = new wishlist list)
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -33,6 +33,12 @@ const MODES = {
     missingLabel: (n) => `${n} not bought`,
     starTitle: 'Star: actually selling this',
     storeListTitle: (store) => `Selling to ${store}`,
+    // Sub-lists (#17): one "Selling to <store>" list per store, by `sellTo`. An unknown store id counts as the main list.
+    groupOf: (item) => (state.stores.some((s) => s.id === item.sellTo) ? item.sellTo : null),
+    setGroup: (item, id) => { item.sellTo = id; },
+    groups: () => state.stores.map((s) => ({ id: s.id, label: s.label, title: MODES.sell.storeListTitle(s.label), chosen: s.id, qty: true, print: true })),
+    moveTarget: 'Store',
+    newGroup: false,
   },
   buy: {
     subtitle: 'cheapest price per card',
@@ -45,6 +51,14 @@ const MODES = {
     totalLabel: () => 'Total cost if bought at…',
     missingLabel: (n) => `${n} unavailable`,
     starTitle: 'Star: actually buying this',
+    // Sub-lists (#27): wishlist lists the user names ("Check Lands"), by `group`, alphabetically.
+    // A list exists while it has cards.
+    groupOf: (item) => (typeof item.group === 'string' && item.group.trim() ? item.group : null),
+    setGroup: (item, name) => { item.group = name; },
+    groups: () => [...new Set(state.lists.buy.map((item) => MODES.buy.groupOf(item)).filter(Boolean))].sort(byText)
+      .map((name) => ({ id: name, label: name, title: name })),
+    moveTarget: 'List',
+    newGroup: true,
   },
 };
 const cfg = () => MODES[state.view];
@@ -238,16 +252,13 @@ function addToList(key) {
   renderResults();
 }
 
-// Store a sell-list card was moved to (#17), or null if it's in the main list.
-// Only the Selling tab has store lists; an unknown store id counts as the main list.
-function sellToOf(item) {
-  return state.view === 'sell' && state.stores.some((s) => s.id === item.sellTo) ? item.sellTo : null;
-}
+// Sub-list a card was moved to ("Selling to <store>" or a wishlist list), or null if it's in the main list.
+const groupOf = (item) => cfg().groupOf(item);
 
 function renderList() {
   const c = cfg();
   const list = currentList();
-  const main = list.filter((item) => !sellToOf(item));
+  const main = list.filter((item) => !groupOf(item));
   const table = $('#list');
   $('#list-title').textContent = c.listTitle;
   $('#list-empty').innerHTML = c.emptyText;
@@ -257,7 +268,7 @@ function renderList() {
   $('#list-count').textContent = main.length ? `${main.length} card${main.length === 1 ? '' : 's'}` : '';
   renderUpdated();
   renderMoveBar(main);
-  renderStoreLists(list);
+  renderSubLists(list);
   if (!main.length) return;
 
   const { thead, tbody, tfoot } = listTable(main, { subtotal: true });
@@ -327,30 +338,43 @@ function qtyCell(item) {
   </span></td>`;
 }
 
-// "Move starred cards to [store]": shown in Selling when the main list has starred cards.
+// "Move starred cards to [sub-list]": shown when the main list has starred cards.
+// Selling offers the stores; Buying offers the wishlist lists, then "New list…" (value '') with a name field.
 function renderMoveBar(main) {
+  const c = cfg();
   const bar = $('#move-bar');
   const count = main.filter((item) => item.starred).length;
-  bar.hidden = state.view !== 'sell' || !count;
+  bar.hidden = !count;
   if (bar.hidden) return;
-  if (!state.stores.some((s) => s.id === state.moveTo)) state.moveTo = state.stores[0]?.id;
+  const options = c.groups().map((g) => ({ value: g.id, label: g.label }));
+  if (c.newGroup) options.push({ value: '', label: 'New list…' });
+  const picked = state.moveTo[state.view];
+  if (!options.some((o) => o.value === picked)) state.moveTo[state.view] = options[0]?.value ?? '';
   $('#move-label').textContent = `Move ${count} starred card${count === 1 ? '' : 's'} to`;
-  $('#move-to').innerHTML = state.stores
-    .map((s) => `<option value="${esc(s.id)}"${s.id === state.moveTo ? ' selected' : ''}>${esc(s.label)}</option>`)
+  $('#move-to').setAttribute('aria-label', c.moveTarget);
+  $('#move-to').innerHTML = options
+    .map((o) => `<option value="${esc(o.value)}"${o.value === state.moveTo[state.view] ? ' selected' : ''}>${esc(o.label)}</option>`)
     .join('');
+  renderMoveName();
 }
 
-// One "Selling to <store>" section per store that has cards, in store order.
-function renderStoreLists(list) {
-  const c = cfg();
-  $('#store-lists').innerHTML = state.stores.map((s) => {
-    const items = list.filter((item) => sellToOf(item) === s.id);
+// The new list's name field shows only while "New list…" is picked; Move needs a name.
+function renderMoveName() {
+  const naming = cfg().newGroup && state.moveTo[state.view] === '';
+  $('#move-name').hidden = !naming;
+  $('#move-btn').disabled = naming && !$('#move-name').value.trim();
+}
+
+// One section per sub-list that has cards: "Selling to <store>" in store order, or wishlist lists by name.
+function renderSubLists(list) {
+  $('#sub-lists').innerHTML = cfg().groups().map((g) => {
+    const items = list.filter((item) => groupOf(item) === g.id);
     if (!items.length) return '';
-    const { thead, tbody, tfoot } = listTable(items, { chosen: s.id, qty: true });
-    return `<section class="store-list">
-      <div class="store-list-head">
-        <h3>${esc(c.storeListTitle(s.label))} <span class="pill">${esc(countText(items))}</span></h3>
-        <button class="ghost small" data-print="${esc(s.id)}">Print</button>
+    const { thead, tbody, tfoot } = listTable(items, { chosen: g.chosen, qty: g.qty });
+    return `<section class="sub-list">
+      <div class="sub-list-head">
+        <h3>${esc(g.title)} <span class="pill">${esc(countText(items))}</span></h3>
+        ${g.print ? `<button class="ghost small" data-print="${esc(g.id)}">Print</button>` : ''}
       </div>
       <div class="table-wrap"><table class="grid"><thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
     </section>`;
@@ -410,7 +434,7 @@ function renderUpdated() {
 
 function printStoreList(storeId) {
   const store = state.stores.find((s) => s.id === storeId);
-  const items = currentList().filter((item) => sellToOf(item) === storeId).sort(compareListItems);
+  const items = currentList().filter((item) => groupOf(item) === storeId).sort(compareListItems);
   if (!store || !items.length) return;
 
   let credit = 0;
@@ -581,7 +605,7 @@ $('#results').addEventListener('click', (e) => {
   addToList(b.dataset.add);
 });
 
-// Star / quantity / remove in the main list and in every store list. Rows are found by key: starred cards are
+// Star / quantity / remove in the main list and in every sub-list. Rows are found by key: starred cards are
 // shown first, and cards are split across lists, so row order differs from the saved order.
 $('#list-panel').addEventListener('click', (e) => {
   const list = currentList();
@@ -590,9 +614,10 @@ $('#list-panel').addEventListener('click', (e) => {
     const item = list.find((i) => i.key === star.dataset.star);
     if (!item) return;
     if (item.starred) {
-      // Unstarring a card in a store list also sends it back to the main list, with no quantity.
+      // Unstarring a card in a sub-list also sends it back to the main list, with no quantity.
       delete item.starred;
       delete item.sellTo;
+      delete item.group;
       delete item.qty;
     } else item.starred = true;
     saveList();
@@ -631,21 +656,34 @@ document.querySelectorAll('[data-value]').forEach((b) =>
 
 $('#refresh').addEventListener('click', refreshPrices);
 
-$('#store-lists').addEventListener('click', (e) => {
+$('#sub-lists').addEventListener('click', (e) => {
   const b = e.target.closest('[data-print]');
   if (b) printStoreList(b.dataset.print);
 });
 
-$('#move-to').addEventListener('change', (e) => { state.moveTo = e.target.value; });
+$('#move-to').addEventListener('change', (e) => {
+  state.moveTo[state.view] = e.target.value;
+  renderMoveName();
+  if (e.target.value === '') $('#move-name').focus();
+});
+$('#move-name').addEventListener('input', renderMoveName);
+$('#move-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#move-btn').click(); });
 
-// Move the main list's starred cards into the chosen store's list.
+// Move the main list's starred cards into the picked sub-list. A new wishlist list whose name matches
+// an existing one (trimmed, any case) adds to that list instead of making a near-duplicate.
 $('#move-btn').addEventListener('click', () => {
-  const store = $('#move-to').value;
-  if (!state.stores.some((s) => s.id === store)) return;
+  const c = cfg();
+  let target = $('#move-to').value;
+  if (c.newGroup && target === '') {
+    const name = $('#move-name').value.trim();
+    if (!name) return;
+    target = c.groups().find((g) => byText(g.id, name) === 0)?.id ?? name;
+  } else if (!c.groups().some((g) => g.id === target)) return;
   for (const item of currentList()) {
-    if (item.starred && !sellToOf(item)) item.sellTo = store;
+    if (item.starred && !groupOf(item)) c.setGroup(item, target);
   }
-  state.moveTo = store;
+  state.moveTo[state.view] = target;
+  $('#move-name').value = '';
   saveList();
   renderList();
 });
