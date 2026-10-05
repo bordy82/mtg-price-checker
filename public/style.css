@@ -105,11 +105,15 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
 .grid td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .grid tbody tr:hover { background: color-mix(in srgb, var(--chip) 50%, transparent); }
 .grid th.num, .grid td.num { text-align: right; white-space: nowrap; }
-/* Quantity stepper in "Selling to <store>" lists. */
-.grid th.qty, .grid td.qty { text-align: center; white-space: nowrap; }
-.stepper { display: inline-flex; align-items: center; }
-.stepper button.icon { padding: 2px 6px; }
-.stepper .qty-n { min-width: 1.5em; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Quantity in "Selling to <store>" lists: floated right on the set line under the name. The set line is plain
+   text and flows around it; the name is a button (one unbreakable box), which would drop below a float on its
+   line, and a column beside the whole card would wrap long names onto an extra line.
+   One copy shows only a faint +, clearer on row hover; two or more show − 2× +. */
+.stepper { float: right; display: inline-flex; align-items: center; white-space: nowrap; margin: 2px 0 0 8px; line-height: 1; }
+.stepper button.icon { padding: 0 5px; font-size: 15px; line-height: 1; }
+.stepper:not(.multi) button.icon { opacity: .45; }
+.grid tbody tr:hover .stepper button.icon { opacity: 1; }
+.stepper .qty-n { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .grid tr.total td { border-bottom: 0; font-weight: 600; padding-top: 12px; }
 .grid tr.total.sub td { font-weight: 400; color: var(--muted); padding-top: 2px; font-size: 13px; }
 .grid tbody tr.total:hover { background: none; }

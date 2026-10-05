@@ -307,7 +307,7 @@ function compareListItems(a, b) {
 
 // One list table: starred cards first, an optional starred subtotal, and per-store totals.
 // `chosen` highlights one store's column (the store a "Selling to" list is for).
-// `qty` adds a quantity stepper column (store lists only); totals then count every copy,
+// `qty` adds a quantity stepper inside the Card cell (store lists only); totals then count every copy,
 // while the price cells (and the green "best") stay per copy.
 function listTable(items, { subtotal = false, chosen = null, qty = false } = {}) {
   const c = cfg();
@@ -318,8 +318,7 @@ function listTable(items, { subtotal = false, chosen = null, qty = false } = {})
     return `<tr>
       <td><button class="icon star${item.starred ? ' on' : ''}" data-star="${key}" title="${esc(c.starTitle)}" aria-pressed="${Boolean(item.starred)}">${item.starred ? '★' : '☆'}</button></td>
       ${thumb(item.image)}
-      <td><div class="card-name">${nameButton(item.name)} ${printingTags(item)}</div>${printingLine(item)}</td>
-      ${qty ? qtyCell(item) : ''}
+      <td><div class="card-name">${nameButton(item.name)} ${printingTags(item)}</div>${qty ? qtyStepper(item) : ''}${printingLine(item)}</td>
       ${state.stores.map((s) => priceCell(item.prices, s.id, best, chosen)).join('')}
       <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
     </tr>`;
@@ -330,25 +329,26 @@ function listTable(items, { subtotal = false, chosen = null, qty = false } = {})
   if (subtotal && starred.length && starred.length < rows.length) {
     const label = c.totalLabel();
     html.splice(starred.length, 0,
-      totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred, { perCopy: qty }),
-        { cls: 'starred', qty }));
+      totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred, { perCopy: qty }), 'starred'));
   }
   return {
-    thead: `<tr><th></th><th></th><th>Card</th>${qty ? '<th class="qty">Qty</th>' : ''}${storeHeaders(chosen)}<th></th></tr>`,
+    thead: `<tr><th></th><th></th><th>Card</th>${storeHeaders(chosen)}<th></th></tr>`,
     tbody: html.join(''),
-    tfoot: totalRows(c.totalLabel(), listTotals(items, { perCopy: qty }), { chosen, qty }),
+    tfoot: totalRows(c.totalLabel(), listTotals(items, { perCopy: qty }), '', chosen),
   };
 }
 
-// − n + : − stops at 1 (removing a card stays the ✕'s job).
-function qtyCell(item) {
+// Quantity, at the right of the card's set line (#29): one copy shows only a faint +; two or more show − 2× +.
+// − at 2 goes back to just +, so it never removes a card (that stays the ✕'s job).
+function qtyStepper(item) {
   const key = esc(item.key);
   const n = qtyOf(item);
-  return `<td class="qty"><span class="stepper">
-    <button class="icon" data-qty="${key}" data-step="-1" title="One copy fewer"${n <= 1 ? ' disabled' : ''}>−</button>
-    <span class="qty-n">${n}</span>
-    <button class="icon" data-qty="${key}" data-step="1" title="One more copy">+</button>
-  </span></td>`;
+  const plus = `<button class="icon" data-qty="${key}" data-step="1" title="One more copy">+</button>`;
+  if (n <= 1) return `<span class="stepper">${plus}</span>`;
+  return `<span class="stepper multi">
+    <button class="icon" data-qty="${key}" data-step="-1" title="One copy fewer">−</button>
+    <span class="qty-n">${n}×</span>${plus}
+  </span>`;
 }
 
 // "Move starred cards to [sub-list]": shown when the main list has starred cards.
@@ -422,18 +422,16 @@ function listTotals(items, { perCopy = false } = {}) {
 }
 
 // Two rows: the total per store, then how many cards each store doesn't buy / have in stock.
-// `qty` adds the empty cell under the Qty column so the store columns stay aligned.
-function totalRows(label, { perStore, missing }, { cls = '', chosen = null, qty = false } = {}) {
+function totalRows(label, { perStore, missing }, cls = '', chosen = null) {
   const { missingLabel } = cfg();
-  const qtyGap = qty ? '<td></td>' : '';
   return `
     <tr class="total ${cls}">
-      <td></td><td></td><td>${esc(label)}</td>${qtyGap}
+      <td></td><td></td><td>${esc(label)}</td>
       ${state.stores.map((s) => `<td class="${colClass(s.id, chosen)}">${money(perStore[s.id])}</td>`).join('')}
       <td></td>
     </tr>
     <tr class="total sub ${cls}">
-      <td></td><td></td><td></td>${qtyGap}
+      <td></td><td></td><td></td>
       ${state.stores.map((s) => `<td class="${colClass(s.id, chosen)}">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}
       <td></td>
     </tr>`;
