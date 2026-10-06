@@ -18,7 +18,7 @@ Supported stores:
 
 - Search a card by name and see every printing side by side across all stores. Printings are matched by set, collector number and finish.
 - Filter results by finish (non-foil, foil, etched) and version (normal, borderless, showcase, extended art…).
-- Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click (or just one wishlist list, with its own **Refresh**).
+- Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click (or just one wishlist list, with its own **Refresh**). The button shows its progress (`Refreshing 12 / 55…`).
 - Click a card's name (in the search results or any list) to copy it, ready to paste into a store's site; a small "✓ Copied" flashes next to it. Two-name cards copy only the front name (`Clive Rosfield - Vial Smasher the Fierce` → `Clive Rosfield`), which every store's search finds.
 - Lists are sorted by card name. Star the cards you're actually selling or buying: they're pinned to the top, with their own subtotal.
 - Removed a card by mistake? "Removed <card> · **Undo**" shows for 8 seconds and puts it back exactly as it was (star, list, quantity).

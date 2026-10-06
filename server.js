@@ -102,18 +102,19 @@ app.put('/api/list', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Re-fetch prices for every card in the saved list, or only for `keys` (one wishlist list, #33).
+// Re-fetch prices for every card in the saved list, or only for `keys` (one wishlist list, #33; the page's
+// small batches, #44).
 app.post('/api/refresh', async (req, res) => {
   const mode = modeOf(req);
   const only = Array.isArray(req.body?.keys) ? new Set(req.body.keys) : null;
   const picked = (item) => !only || only.has(item.key);
   // Search by front name: stores spell the rest of two-name cards differently.
   const names = [...new Set((await readList(mode)).filter(picked).map((item) => frontName(item.name)))];
-  const errors = {};
-  const byName = new Map();
+  const errors = {}; // every store that failed for some name, for the page's message
+  const byName = new Map(); // front name -> { printings, errors }
   for (const name of names) {
     const result = await searchAll(name, { mode, force: true });
-    byName.set(name, result.printings);
+    byName.set(name, result);
     Object.assign(errors, result.errors);
   }
 
@@ -126,10 +127,12 @@ app.post('/api/refresh', async (req, res) => {
     const now = Date.now();
     for (const item of current) {
       if (!picked(item) || !byName.has(frontName(item.name))) continue;
-      const match = byName.get(frontName(item.name))?.find((p) => p.keys.includes(item.key));
+      const result = byName.get(frontName(item.name));
+      const match = result.printings.find((p) => p.keys.includes(item.key));
       const fresh = match ? { ...match.prices } : {};
-      // Keep the last known prices of stores that couldn't be reached this time.
-      for (const id of Object.keys(errors)) {
+      // Keep the last known prices of stores that couldn't be reached for this card's search (#44): a store
+      // that failed for another card answered for this one, so its answer (even "not buying") stands.
+      for (const id of Object.keys(result.errors)) {
         if (item.prices?.[id]) fresh[id] = item.prices[id];
       }
       item.prices = fresh;
