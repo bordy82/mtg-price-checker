@@ -7,7 +7,7 @@ const state = {
   lists: { sell: [], buy: [] },
   excluded: { sell: new Set(), buy: new Set() }, // stores left out of the comparison, per view
   moveTo: { sell: null, buy: null }, // sub-list picked in "Move starred cards to", per view ('' = new wishlist list)
-  refreshing: new Set(), // price refreshes running, as `${view}:${sub-list id}` ('' = the whole list)
+  refreshing: new Map(), // price refreshes running: `${view}:${sub-list id}` ('' = the whole list) -> { done, total }
   search: { seq: 0, abort: null }, // the latest search (#37): only its response may render
 };
 
@@ -331,9 +331,9 @@ function renderList() {
   $('#list-empty').innerHTML = c.emptyText;
   $('#list-empty').hidden = list.length > 0;
   table.hidden = !main.length;
-  const refreshing = state.refreshing.has(`${state.view}:`);
-  $('#refresh').disabled = !list.length || refreshing;
-  $('#refresh').textContent = refreshing ? 'Refreshing…' : 'Refresh prices';
+  const refreshing = state.refreshing.get(`${state.view}:`);
+  $('#refresh').disabled = !list.length || Boolean(refreshing);
+  $('#refresh').textContent = refreshing ? refreshingText(refreshing) : 'Refresh prices';
   $('#print-list').hidden = !c.printMain || !main.length;
   $('#list-count').textContent = main.length ? `${main.length} card${main.length === 1 ? '' : 's'}` : '';
   renderUpdated();
@@ -442,11 +442,11 @@ function renderSubLists(list) {
     const items = list.filter((item) => groupOf(item) === g.id);
     if (!items.length) return '';
     const { thead, tbody, tfoot } = listTable(items, { chosen: g.chosen, qty: g.qty });
-    const refreshing = state.refreshing.has(`${state.view}:${g.id}`);
+    const refreshing = state.refreshing.get(`${state.view}:${g.id}`);
     // Wishlist lists (#33) refresh on their own and show their own prices' age.
     const refresh = g.refresh
       ? `<span class="muted" data-age="${esc(g.id)}">${esc(pricesAge(items))}</span>
-        <button class="ghost small" data-refresh="${esc(g.id)}"${refreshing ? ' disabled' : ''}>${refreshing ? 'Refreshing…' : 'Refresh'}</button>`
+        <button class="ghost small" data-refresh="${esc(g.id)}"${refreshing ? ' disabled' : ''}>${refreshing ? refreshingText(refreshing) : 'Refresh'}</button>`
       : '';
     return `<section class="sub-list">
       <div class="sub-list-head">
@@ -600,33 +600,61 @@ function printStoreList(storeId) {
 window.addEventListener('afterprint', () => { $('#print-sheet').innerHTML = ''; });
 
 // Refresh the whole list, or one sub-list's cards (`groupId`, a wishlist list, #33).
+// One request per card name, at most REFRESH_PARALLEL at a time, with "Refreshing N / M…" on the button (#44).
+// Searching every name in one request, one after another, took ~3 s per name: about 3 minutes for 55 names.
+const REFRESH_PARALLEL = 3;
+const refreshingText = ({ done, total }) => `Refreshing ${done} / ${total}…`;
+
 async function refreshPrices(groupId = '') {
   const view = state.view;
   const running = `${view}:${groupId}`;
   if (state.refreshing.has(running)) return;
-  const keys = groupId ? currentList().filter((item) => groupOf(item) === groupId).map((item) => item.key) : null;
-  state.refreshing.add(running);
+  const items = groupId ? state.lists[view].filter((item) => groupOf(item) === groupId) : state.lists[view];
+  // One batch per front name: what the server searches stores with.
+  const keysByName = new Map();
+  for (const item of items) {
+    const name = frontName(item.name);
+    keysByName.set(name, [...(keysByName.get(name) || []), item.key]);
+  }
+  const batches = [...keysByName.values()];
+  const progress = { done: 0, total: batches.length };
+  state.refreshing.set(running, progress);
   renderList();
-  try {
-    const { list, errors } = await api(`/api/refresh?mode=${view}`, {
-      method: 'POST',
-      body: keys ? JSON.stringify({ keys }) : undefined,
-    });
-    // Take only the new prices: anything changed on the page meanwhile (star, move, remove, add) stays.
-    const fresh = new Map(list.map((item) => [item.key, item]));
+
+  const failedStores = new Set();
+  let error = null;
+  async function refreshBatch(keys) {
+    const { list, errors } = await api(`/api/refresh?mode=${view}`, { method: 'POST', body: JSON.stringify({ keys }) });
+    // Take only this batch's new prices: anything changed on the page meanwhile (star, move, remove, add) stays,
+    // and a response arriving late can't put back another batch's older prices.
+    const wanted = new Set(keys);
+    const fresh = new Map(list.filter((item) => wanted.has(item.key)).map((item) => [item.key, item]));
     for (const item of state.lists[view]) {
       const f = fresh.get(item.key);
       if (f) { item.prices = f.prices; item.updatedAt = f.updatedAt; }
     }
-    // A save sent while the server was writing could have put the old prices back on disk; this fixes that.
-    saveList(view);
-    const failed = Object.keys(errors || {});
-    if (failed.length) {
-      const names = failed.map((id) => state.stores.find((s) => s.id === id)?.label || id);
-      alert(`Couldn't reach: ${names.join(', ')}. Their prices are blank until the next refresh.`);
+    Object.keys(errors || {}).forEach((id) => failedStores.add(id));
+  }
+  let next = 0;
+  async function worker() {
+    // Stop at the first failed request: it's the server (stores failing is reported in `errors`, not thrown).
+    while (next < batches.length && !error) {
+      const keys = batches[next++];
+      try { await refreshBatch(keys); } catch (err) { error = err; }
+      progress.done++;
+      if (view === state.view) renderList();
     }
-  } catch (err) {
-    alert(err.message);
+  }
+
+  try {
+    await Promise.all(Array.from({ length: Math.min(REFRESH_PARALLEL, batches.length) }, worker));
+    // A save sent while the server was writing could have put old prices back on disk; this fixes that.
+    saveList(view);
+    if (error) alert(`Refresh stopped after ${progress.done} of ${progress.total} cards: ${error.message}`);
+    else if (failedStores.size) {
+      const names = [...failedStores].map((id) => state.stores.find((s) => s.id === id)?.label || id);
+      alert(`Couldn't reach: ${names.join(', ')}. Their last known prices are kept for the cards they didn't answer for.`);
+    }
   } finally {
     state.refreshing.delete(running);
     if (view === state.view) renderList();
