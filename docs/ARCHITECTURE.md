@@ -53,6 +53,7 @@ module.exports = {
   id: 'f2f',                // key in row.prices
   label: 'Face to Face',    // column header
   creditNote: 'cash + 30%', // header tooltip in Selling
+  links: { buy, sell },     // store search pages, `{q}` = front name: the page's link for cards saved without a `url`
   search(name),             // -> Offer[] with { cash, credit, retail }
   searchRetail(name),       // -> Offer[] with { price, stock }
 };
@@ -109,17 +110,19 @@ Turns each store's naming into comparable values:
 
 ```js
 // Offer — one store's listing, from an adapter
-{ store, name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments[], condition: 'NM', image, raw,
+{ store, name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments[], condition: 'NM', image, raw, url,
   cash, credit, retail }   // sell
   price, stock }           // buy (instead of cash/credit/retail)
 
 // Row — one printing across stores, from mergeOffers
 { key, keys[], name, setName, setCode, collectorNumber, finish, treatments[], image,
-  prices: { [storeId]: { cash, credit, retail } | { price, stock } } }
+  prices: { [storeId]: { cash, credit, retail, url } | { price, stock, url } } }
 
 // List item — saved in data/list.json or data/wishlist.json
 { key, name, setName, setCode, collectorNumber, finish, treatments[], image, prices, updatedAt, starred?, sellTo?, qty?, group? }
 ```
+
+**Store links (#45).** Each offer carries `url`, the card at that store in that mode (how each store builds it: [STORES.md](STORES.md)). `mergeOffers` keeps it with the store's prices, so lists save it and Refresh updates it. `priceCell()` wraps every price in a link to it (new tab, "Open at <store>"). Cards saved before links existed have no `url` until their next refresh, so `storeLink()` falls back to the store's `links[mode]` search for the front name (from `/api/stores`).
 
 `starred: true` marks a card the user is actually selling or buying. The page shows starred cards first, then sorts each group by card name (then set, collector number and finish) with `compareListItems`. It sorts a copy, so the saved order is unchanged, and its list buttons find items by `key`, not by row position. When some (not all) cards are starred, a subtotal for the starred cards sits under the last one, built with the same `listTotals` / `totalRows` helpers as the footer.
 

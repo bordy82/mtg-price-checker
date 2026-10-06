@@ -4,11 +4,18 @@
 // Retail: the same response carries the Shopify store's variants (price + inventory per condition),
 // which match cards.collect-edition.com.
 
-const { round2, normCollector, normFinish, normTreatment } = require('../lib/normalize');
+const { round2, normCollector, normFinish, normTreatment, searchLink } = require('../lib/normalize');
 const { fetchProducts } = require('../lib/storepass');
 
 const HOST = 'buylist.collect-edition.com';
 const STORE_ID = 'dFODoSzI0G';
+
+// Store pages for a card (#45). Retail: Shopify's /variants/<id> redirects to the product page with that variant
+// (Near Mint) selected. The buylist has no product pages; its search reads `q` (and needs the product line).
+const LINKS = {
+  buy: 'https://cards.collect-edition.com/search?q={q}',
+  sell: `https://${HOST}/retailer/buylist?q={q}&product_line=Magic%3A%20the%20Gathering`,
+};
 
 // "Sol Ring - Elven (0408) (Serial Numbered) (LTC-408Z) - Tales of Middle-earth Commander Foil"
 //  -> name "Sol Ring - Elven", tags ["0408", "Serial Numbered", "LTC-408Z"]
@@ -55,12 +62,13 @@ function toOffer(p, mode) {
     const variant = (p.variant_info || []).find((v) => v.title === 'Near Mint');
     if (!variant) return null;
     const price = Number(variant.price) > 0 ? round2(Number(variant.price)) : null;
-    return { ...identity, price, stock: Math.max(0, Number(variant.inventory_quantity) || 0) };
+    const url = variant.id ? `https://cards.collect-edition.com/variants/${variant.id}` : searchLink(LINKS.buy, name);
+    return { ...identity, price, stock: Math.max(0, Number(variant.inventory_quantity) || 0), url };
   }
   const nm = (p.store_pass_variant_info || []).find((v) => v.title === 'Near Mint') || p;
   const cash = Number(nm.offer_price) > 0 ? round2(Number(nm.offer_price)) : null;
   const credit = Number(nm.offer_price_credit) > 0 ? round2(Number(nm.offer_price_credit)) : null;
-  return { ...identity, cash, credit, retail: Number(p.price) || null };
+  return { ...identity, cash, credit, retail: Number(p.price) || null, url: searchLink(LINKS.sell, name) };
 }
 
 async function search(name) {
@@ -75,6 +83,7 @@ module.exports = {
   id: 'ce',
   label: 'Collect-Edition',
   creditNote: 'site price = credit',
+  links: LINKS,
   search,
   searchRetail,
 };

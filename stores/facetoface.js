@@ -2,7 +2,7 @@
 // Buylist: the price shown is CASH; store credit gets a 30% bonus at checkout.
 // Retail: same index without /buy; each condition variant has its price and stock.
 
-const { round2, normCollector, normFinish, normTreatment, getJson } = require('../lib/normalize');
+const { round2, normCollector, normFinish, normTreatment, searchLink, getJson } = require('../lib/normalize');
 
 const CREDIT_MULTIPLIER = 1.3;
 const PAGE_SIZE = 100;
@@ -23,6 +23,14 @@ const searchUrl = (name, page, mode) =>
 
 // Sets whose SKU code doesn't match what other stores use.
 const SET_CODE_BY_NAME = { 'The List': 'LIST' };
+
+// Store pages for a card (#45). The product page serves both modes: it has "Add to sell" and the buylist cart.
+// LINKS (searches) are for offers without a handle, and for the page's cards saved before links existed.
+const productUrl = (handle) => `https://facetofacegames.com/products/${handle}`;
+const LINKS = {
+  buy: 'https://facetofacegames.com/search?q={q}',
+  sell: 'https://facetofacegames.com/search?q={q}',
+};
 
 // SKUs look like "SIN-MTG-FIN-253-ENG-NM-NF", "M-C15-Sol_Ring-268-NM-NF" or "MP-Sol_Ring-G05-3-NM-F".
 function setCodeFromSku(sku, collectorNumber) {
@@ -55,6 +63,7 @@ function toOffer(src, mode) {
     condition: 'NM',
     image: nm.image?.url || src.media?.[0]?.url || null,
     raw: src.title,
+    url: src.handle ? productUrl(src.handle) : searchLink(LINKS[mode], src.General_Card_Name || src.title),
   };
 
   if (mode === 'buy') {
@@ -90,6 +99,7 @@ module.exports = {
   id: 'f2f',
   label: 'Face to Face',
   creditNote: 'cash + 30%',
+  links: LINKS,
   search,
   searchRetail,
 };
