@@ -9,6 +9,7 @@ const state = {
   moveTo: { sell: null, buy: null }, // sub-list picked in "Move starred cards to", per view ('' = new wishlist list)
   refreshing: new Set(), // price refreshes running, as `${view}:${sub-list id}` ('' = the whole list)
   search: { seq: 0, abort: null }, // the latest search (#37): only its response may render
+  removed: null, // the last removed card, for Undo (#43): { view, item, index, timer }
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -665,6 +666,7 @@ function saveExcluded() {
 function setView(view) {
   if (view === state.view) return;
   state.view = view;
+  dropUndo();
   try { localStorage.setItem(VIEW_KEY, view); } catch {}
   const query = $('#search-input').value.trim();
   const hadResults = state.results.length > 0;
@@ -825,11 +827,58 @@ $('#list-panel').addEventListener('click', (e) => {
   if (!b) return;
   const idx = list.findIndex((i) => i.key === b.dataset.remove);
   if (idx === -1) return;
-  list.splice(idx, 1);
+  const [item] = list.splice(idx, 1);
+  showUndo(item, idx);
   saveList();
   renderList();
   if (state.results.length) renderResults();
 });
+
+// ---- undo a removal (#43) ----
+// One level: the last removed card, for 8 s or until the next removal or a tab switch. Undo puts back the same
+// object, so its star, sub-list (sellTo / group), quantity and prices come back with it.
+
+const UNDO_MS = 8000;
+
+function showUndo(item, index) {
+  clearTimeout(state.removed?.timer);
+  const timer = setTimeout(dropUndo, UNDO_MS);
+  state.removed = { view: state.view, item, index, timer };
+  renderUndo();
+}
+
+function dropUndo() {
+  clearTimeout(state.removed?.timer);
+  state.removed = null;
+  renderUndo();
+}
+
+function renderUndo() {
+  const r = state.removed;
+  const shown = Boolean(r && r.view === state.view);
+  $('#undo-bar').hidden = !shown;
+  $('#undo-text').textContent = shown ? `Removed ${r.item.name}` : '';
+}
+
+function undoRemove() {
+  const r = state.removed;
+  if (!r) return;
+  dropUndo();
+  const list = state.lists[r.view];
+  // Added again from the search results meanwhile: keep that one.
+  if (!list.some((i) => i.key === r.item.key)) list.splice(Math.min(r.index, list.length), 0, r.item);
+  saveList(r.view);
+  renderList();
+  if (state.results.length) renderResults();
+}
+
+$('#undo-btn').addEventListener('click', undoRemove);
+
+// The undo bar sticks just under the sticky top bar, whose height changes when it wraps on narrow screens.
+const setTopbarHeight = () =>
+  document.documentElement.style.setProperty('--topbar-h', `${$('.topbar').offsetHeight}px`);
+setTopbarHeight();
+window.addEventListener('resize', setTopbarHeight);
 
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
