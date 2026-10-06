@@ -194,7 +194,11 @@ button.copy-name:hover { text-decoration: underline; text-underline-offset: 3px;
   #print-sheet .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   #print-sheet .ps-name { font-weight: 600; }
   #print-sheet .ps-meta { font-size: 9pt; color: #444; }
-  #print-sheet .ps-each { font-size: 8pt; color: #444; }
+  #print-sheet .ps-each { font-size: 8pt; color: #444; font-weight: 400; }
+  /* Wishlist sheets (#55): the cheapest in-stock store is bold with a ★; sold-out prices are grey. */
+  #print-sheet .ps-best { font-weight: 700; }
+  #print-sheet .ps-oos { color: #888; }
+  #print-sheet .ps-oos .ps-each { color: #888; }
   #print-sheet tfoot td { font-weight: 700; border-top: 1.5pt solid #000; border-bottom: 0; }
   #print-sheet tfoot .ps-note td { font-weight: 400; color: #444; border-top: 0; padding-top: 0; }
 }

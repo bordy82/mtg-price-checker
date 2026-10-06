@@ -38,6 +38,8 @@ const MODES = {
     groupOf: (item) => (state.stores.some((s) => s.id === item.sellTo) ? item.sellTo : null),
     setGroup: (item, id) => { item.sellTo = id; },
     groups: () => state.stores.map((s) => ({ id: s.id, label: s.label, title: MODES.sell.storeListTitle(s.label), chosen: s.id, qty: true, print: true })),
+    print: (storeId) => printStoreList(storeId),
+    printMain: false,
     moveTarget: 'Store',
     newGroup: false,
   },
@@ -57,7 +59,10 @@ const MODES = {
     groupOf: (item) => (typeof item.group === 'string' && item.group.trim() ? item.group : null),
     setGroup: (item, name) => { item.group = name; },
     groups: () => [...new Set(state.lists.buy.map((item) => MODES.buy.groupOf(item)).filter(Boolean))].sort(byText)
-      .map((name) => ({ id: name, label: name, title: name, refresh: true })),
+      .map((name) => ({ id: name, label: name, title: name, refresh: true, print: true })),
+    // Each wishlist list prints on its own (#55), and so does the main wishlist (`null`: cards not in a list).
+    print: (name) => printWishlist(name),
+    printMain: true,
     moveTarget: 'List',
     newGroup: true,
   },
@@ -278,6 +283,7 @@ function renderList() {
   const refreshing = state.refreshing.has(`${state.view}:`);
   $('#refresh').disabled = !list.length || refreshing;
   $('#refresh').textContent = refreshing ? 'Refreshing…' : 'Refresh prices';
+  $('#print-list').hidden = !c.printMain || !main.length;
   $('#list-count').textContent = main.length ? `${main.length} card${main.length === 1 ? '' : 's'}` : '';
   renderUpdated();
   renderMoveBar(main);
@@ -453,8 +459,58 @@ function renderUpdated() {
   }
 }
 
-// ---- print a "Selling to <store>" list: that store's credit and cash only, whatever the switch says ----
+// ---- printing: only #print-sheet is printed (see @media print) ----
 
+// Card cell of a printed sheet: name, then set · code #number, finish and version tags (plain text).
+function printCardCell(item) {
+  const finish = item.finish === 'nonfoil' ? '' : item.finish.replace(/\b\w/g, (ch) => ch.toUpperCase());
+  const meta = [`${item.setName || item.setCode} · ${String(item.setCode).toUpperCase()} #${item.collectorNumber}`,
+    finish, ...item.treatments].filter(Boolean).join(' · ');
+  return `<td><div class="ps-name">${esc(item.name)}</div><div class="ps-meta">${esc(meta)}</div></td>`;
+}
+
+// Title, "date · prices' age · count" line, then the table; cleared again on afterprint.
+function printSheet(title, items, table) {
+  const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  const info = [date, pricesAge(items), countText(items)].filter(Boolean).join(' · ');
+  $('#print-sheet').innerHTML = `<h2>${esc(title)}</h2><p class="ps-info">${esc(info)}</p>${table}`;
+  window.print();
+}
+
+// A wishlist list (#55), or the main wishlist (`name` null: the cards not moved into a list).
+// Not tied to a store, so it compares them like the screen: every store still in the comparison, price and stock,
+// the cheapest in-stock one bold with a ★ (readable in black and white), per-store totals and "N unavailable".
+function printWishlist(name) {
+  const items = currentList().filter((item) => groupOf(item) === name).sort(compareListItems);
+  if (!items.length) return;
+  const { alt, missingLabel, totalLabel } = cfg();
+  const stores = state.stores.filter((s) => isIncluded(s.id));
+
+  const rows = items.map((item) => {
+    const best = bestStore(item.prices);
+    const cells = stores.map((s) => {
+      const p = item.prices?.[s.id];
+      if (!(p?.price > 0)) return '<td class="num ps-oos">—</td>';
+      const cls = s.id === best ? 'ps-best' : p.stock > 0 ? '' : 'ps-oos';
+      return `<td class="num ${cls}">${s.id === best ? '★ ' : ''}${money(p.price)}<div class="ps-each">${esc(alt(p))}</div></td>`;
+    });
+    return `<tr>${printCardCell(item)}${cells.join('')}</tr>`;
+  });
+
+  const { perStore, missing } = listTotals(items);
+  const anyMissing = stores.some((s) => missing[s.id]);
+  printSheet(name ?? cfg().listTitle, items, `
+    <table>
+      <thead><tr><th>Card</th>${stores.map((s) => `<th class="num">${esc(s.label)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.join('')}</tbody>
+      <tfoot>
+        <tr><td>${esc(totalLabel())}</td>${stores.map((s) => `<td class="num">${money(perStore[s.id])}</td>`).join('')}</tr>
+        ${anyMissing ? `<tr class="ps-note"><td></td>${stores.map((s) => `<td class="num">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}</tr>` : ''}
+      </tfoot>
+    </table>`);
+}
+
+// A "Selling to <store>" list: that store's credit and cash only, whatever the switch says.
 function printStoreList(storeId) {
   const store = state.stores.find((s) => s.id === storeId);
   const items = currentList().filter((item) => groupOf(item) === storeId).sort(compareListItems);
@@ -470,22 +526,15 @@ function printStoreList(storeId) {
     if (buys) { credit += (p.credit || 0) * n; cash += (p.cash || 0) * n; } else notBought += n;
     // Line total (qty × unit), with the unit price under it when there's more than one copy.
     const line = (unit) => (buys && unit ? `${money(unit * n)}${n > 1 ? `<div class="ps-each">${money(unit)} each</div>` : ''}` : '—');
-    const finish = item.finish === 'nonfoil' ? '' : item.finish.replace(/\b\w/g, (ch) => ch.toUpperCase());
-    const meta = [`${item.setName || item.setCode} · ${String(item.setCode).toUpperCase()} #${item.collectorNumber}`,
-      finish, ...item.treatments].filter(Boolean).join(' · ');
     return `<tr>
-      <td><div class="ps-name">${esc(item.name)}</div><div class="ps-meta">${esc(meta)}</div></td>
+      ${printCardCell(item)}
       <td class="num">${n}</td>
       <td class="num">${line(p?.credit)}</td>
       <td class="num">${line(p?.cash)}</td>
     </tr>`;
   }).join('');
 
-  const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  const info = [date, pricesAge(items), countText(items)].filter(Boolean).join(' · ');
-  $('#print-sheet').innerHTML = `
-    <h2>${esc(cfg().storeListTitle(store.label))}</h2>
-    <p class="ps-info">${esc(info)}</p>
+  printSheet(cfg().storeListTitle(store.label), items, `
     <table>
       <thead><tr><th>Card</th><th class="num">Qty</th><th class="num">Credit</th><th class="num">Cash</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -493,8 +542,7 @@ function printStoreList(storeId) {
         <tr><td>Total</td><td></td><td class="num">${money(credit)}</td><td class="num">${money(cash)}</td></tr>
         ${notBought ? `<tr class="ps-note"><td colspan="4">${notBought} not bought by ${esc(store.label)}</td></tr>` : ''}
       </tfoot>
-    </table>`;
-  window.print();
+    </table>`);
 }
 
 window.addEventListener('afterprint', () => { $('#print-sheet').innerHTML = ''; });
@@ -743,10 +791,11 @@ document.querySelectorAll('[data-value]').forEach((b) =>
 );
 
 $('#refresh').addEventListener('click', () => refreshPrices());
+$('#print-list').addEventListener('click', () => cfg().print(null));
 
 $('#sub-lists').addEventListener('click', (e) => {
   const b = e.target.closest('[data-print]');
-  if (b) printStoreList(b.dataset.print);
+  if (b) cfg().print(b.dataset.print);
   const r = e.target.closest('[data-refresh]');
   if (r) refreshPrices(r.dataset.refresh);
 });
