@@ -41,7 +41,7 @@ const MODES = {
     // Sub-lists (#17): one "Selling to <store>" list per store, by `sellTo`. An unknown store id counts as the main list.
     groupOf: (item) => (state.stores.some((s) => s.id === item.sellTo) ? item.sellTo : null),
     setGroup: (item, id) => { item.sellTo = id; },
-    groups: () => state.stores.map((s) => ({ id: s.id, label: s.label, title: MODES.sell.storeListTitle(s.label), chosen: s.id, qty: true, print: true })),
+    groups: () => state.stores.map((s) => ({ id: s.id, label: s.label, title: MODES.sell.storeListTitle(s.label), chosen: s.id, qty: true, print: true, clear: true })),
     print: (storeId) => printStoreList(storeId),
     printMain: false,
     moveTarget: 'Store',
@@ -455,6 +455,7 @@ function renderSubLists(list) {
         <div class="panel-actions">
           ${refresh}
           ${g.print ? `<button class="ghost small" data-print="${esc(g.id)}">Print</button>` : ''}
+          ${g.clear ? `<button class="ghost small danger-hover" data-clear="${esc(g.id)}">Clear list</button>` : ''}
         </div>
       </div>
       <div class="table-wrap"><table class="grid"><thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table></div>
@@ -902,6 +903,41 @@ function undoRemove() {
 
 $('#undo-btn').addEventListener('click', undoRemove);
 
+// ---- confirmation window ----
+// Resolves true only when the confirm button is clicked. Cancel has the focus, so Enter or Esc right after it
+// opens cancels. The buttons say what they do ("Clear 20 cards"), which window.confirm() can't.
+function confirmDialog({ title, text, confirm }) {
+  const dialog = $('#confirm');
+  $('#confirm-title').textContent = title;
+  $('#confirm-text').textContent = text;
+  $('#confirm-ok').textContent = confirm;
+  dialog.returnValue = '';
+  dialog.showModal();
+  return new Promise((resolve) => dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'), { once: true }));
+}
+
+// ---- clear a "Selling to <store>" list (#63) ----
+// Once the list has been entered on the store's own buylist, its cards are sold: they leave the sell list for good.
+// (Unstarring would send them back to the main list instead.) No undo; the confirmation is the safeguard.
+async function clearStoreList(storeId) {
+  const store = state.stores.find((s) => s.id === storeId);
+  const items = state.lists.sell.filter((item) => groupOf(item) === storeId);
+  if (state.view !== 'sell' || !store || !items.length) return;
+  const cards = `${items.length} card${items.length === 1 ? '' : 's'}`;
+  const copies = items.reduce((n, item) => n + qtyOf(item), 0);
+  const ok = await confirmDialog({
+    title: `Clear "${MODES.sell.storeListTitle(store.label)}"?`,
+    text: `This removes its ${cards}${copies === items.length ? '' : ` (${copies} copies)`} from your sell list. ` +
+      `They won't go back to "${MODES.sell.listTitle}".`,
+    confirm: `Clear ${cards}`,
+  });
+  if (!ok) return;
+  state.lists.sell = state.lists.sell.filter((item) => groupOf(item) !== storeId);
+  saveList('sell');
+  renderList();
+  if (state.results.length) renderResults();
+}
+
 // The undo bar sticks just under the sticky top bar, whose height changes when it wraps on narrow screens.
 const setTopbarHeight = () =>
   document.documentElement.style.setProperty('--topbar-h', `${$('.topbar').offsetHeight}px`);
@@ -928,6 +964,8 @@ $('#sub-lists').addEventListener('click', (e) => {
   if (b) cfg().print(b.dataset.print);
   const r = e.target.closest('[data-refresh]');
   if (r) refreshPrices(r.dataset.refresh);
+  const c = e.target.closest('[data-clear]');
+  if (c) clearStoreList(c.dataset.clear);
 });
 
 $('#move-to').addEventListener('change', (e) => {

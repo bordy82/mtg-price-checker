@@ -9,6 +9,7 @@
   --best: #e3f2e6;
   --best-ink: #1d6b33;
   --chip: #efebe5;
+  --danger: #c0392b;
   --shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 16px rgba(0, 0, 0, .04);
 }
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --best: #1e3a26;
     --best-ink: #8fdca5;
     --chip: #2b2926;
+    --danger: #e5675a;
     --shadow: none;
   }
 }
@@ -185,6 +187,19 @@ button.copy-name:hover { text-decoration: underline; text-underline-offset: 3px;
 .sub-list { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
 .sub-list h3 { font-size: 15px; margin: 0; }
 .sub-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* Clear list (#63): quiet until hovered; the confirmation's Clear button is red. */
+button.ghost.danger-hover:hover { color: var(--danger); border-color: var(--danger); }
+button.danger { background: var(--danger); color: #fff; }
+
+/* Confirmation window (confirmDialog). */
+dialog.confirm {
+  width: min(440px, calc(100vw - 32px)); padding: 20px 22px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); color: var(--ink); box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
+}
+dialog.confirm::backdrop { background: rgba(0, 0, 0, .45); }
+dialog.confirm h2 { font-size: 16px; margin: 0 0 8px; }
+dialog.confirm p { margin: 0 0 18px; color: var(--muted); }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* Printing a "Selling to <store>" list: only #print-sheet is printed, black on white. */
 #print-sheet { display: none; }
