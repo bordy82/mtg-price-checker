@@ -75,6 +75,17 @@
   <img id="card-preview" alt="" hidden>
   <div id="print-sheet"></div>
 
+  <dialog id="confirm" class="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+    <form method="dialog">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text"></p>
+      <div class="confirm-actions">
+        <button value="cancel" class="ghost" autofocus>Cancel</button>
+        <button value="ok" id="confirm-ok" class="danger"></button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="app.js"></script>
 </body>
 </html>
