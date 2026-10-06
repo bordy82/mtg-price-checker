@@ -276,8 +276,36 @@ function renderResults() {
 
 // ---- saved lists ----
 
-async function saveList(view = state.view) {
-  await api(`/api/list?mode=${view}`, { method: 'PUT', body: JSON.stringify(state.lists[view]) });
+// Saving (#40): one PUT per list at a time. Changes made while one is in flight are sent together right after it
+// (the list as it is then), so saves never overlap or reach the server out of order. When a save fails, the list
+// panel says so, with Retry; the next change retries too.
+const saving = { sell: { running: false, again: false, error: null }, buy: { running: false, again: false, error: null } };
+
+function saveList(view = state.view) {
+  const s = saving[view];
+  if (s.running) { s.again = true; return; }
+  s.running = true;
+  (async () => {
+    try {
+      do {
+        s.again = false;
+        await api(`/api/list?mode=${view}`, { method: 'PUT', body: JSON.stringify(state.lists[view]) });
+      } while (s.again);
+      s.error = null;
+    } catch (err) {
+      // fetch() itself fails (TypeError) when the server is down.
+      s.error = err instanceof TypeError ? "the server isn't reachable" : err.message;
+    } finally {
+      s.running = false;
+      renderSaveError();
+    }
+  })();
+}
+
+function renderSaveError() {
+  const { error } = saving[state.view];
+  $('#save-error').hidden = !error;
+  $('#save-error-text').textContent = error ? `Couldn't save: ${error}. Your last change isn't stored.` : '';
 }
 
 function addToList(key) {
@@ -309,6 +337,7 @@ function renderList() {
   $('#print-list').hidden = !c.printMain || !main.length;
   $('#list-count').textContent = main.length ? `${main.length} card${main.length === 1 ? '' : 's'}` : '';
   renderUpdated();
+  renderSaveError();
   renderMoveBar(main);
   renderSubLists(list);
   if (!main.length) return;
@@ -815,6 +844,7 @@ document.querySelectorAll('[data-value]').forEach((b) =>
 
 $('#refresh').addEventListener('click', () => refreshPrices());
 $('#print-list').addEventListener('click', () => cfg().print(null));
+$('#save-retry').addEventListener('click', () => saveList());
 
 $('#sub-lists').addEventListener('click', (e) => {
   const b = e.target.closest('[data-print]');

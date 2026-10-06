@@ -68,12 +68,27 @@ async function readList(mode) {
   }
 }
 
+// One write at a time per list (#40). Overlapping saves used to share one temp file: the first rename moved it
+// away and the second failed. A task runs after the previous one settles, whether it succeeded or not.
+const writeQueues = { sell: Promise.resolve(), buy: Promise.resolve() };
+function queued(mode, task) {
+  const run = writeQueues[mode].then(task, task);
+  writeQueues[mode] = run.catch(() => {});
+  return run;
+}
+
+let tmpCount = 0;
 async function writeList(mode, list) {
   const file = LIST_FILES[mode];
   await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(list, null, 2));
-  await fs.rename(tmp, file);
+  const tmp = `${file}.${process.pid}.${++tmpCount}.tmp`;
+  try {
+    await fs.writeFile(tmp, JSON.stringify(list, null, 2));
+    await fs.rename(tmp, file);
+  } catch (err) {
+    await fs.rm(tmp, { force: true });
+    throw err;
+  }
 }
 
 app.get('/api/list', async (req, res) => {
@@ -82,7 +97,8 @@ app.get('/api/list', async (req, res) => {
 
 app.put('/api/list', async (req, res) => {
   if (!Array.isArray(req.body)) return res.status(400).json({ error: 'Expected an array' });
-  await writeList(modeOf(req), req.body);
+  const mode = modeOf(req);
+  await queued(mode, () => writeList(mode, req.body));
   res.json({ ok: true });
 });
 
@@ -103,21 +119,25 @@ app.post('/api/refresh', async (req, res) => {
 
   // The searches take a while and the page keeps saving meanwhile (star, move, remove…), so re-read the list
   // and only update the prices of the refreshed cards; everything else stays as it is on disk now.
-  // Cards added since (their name wasn't searched) are left alone.
-  const list = await readList(mode);
-  const now = Date.now();
-  for (const item of list) {
-    if (!picked(item) || !byName.has(frontName(item.name))) continue;
-    const match = byName.get(frontName(item.name))?.find((p) => p.keys.includes(item.key));
-    const fresh = match ? { ...match.prices } : {};
-    // Keep the last known prices of stores that couldn't be reached this time.
-    for (const id of Object.keys(errors)) {
-      if (item.prices?.[id]) fresh[id] = item.prices[id];
+  // Cards added since (their name wasn't searched) are left alone. The re-read and the write run in the write
+  // queue (#40), so a save can't land between them and be lost.
+  const list = await queued(mode, async () => {
+    const current = await readList(mode);
+    const now = Date.now();
+    for (const item of current) {
+      if (!picked(item) || !byName.has(frontName(item.name))) continue;
+      const match = byName.get(frontName(item.name))?.find((p) => p.keys.includes(item.key));
+      const fresh = match ? { ...match.prices } : {};
+      // Keep the last known prices of stores that couldn't be reached this time.
+      for (const id of Object.keys(errors)) {
+        if (item.prices?.[id]) fresh[id] = item.prices[id];
+      }
+      item.prices = fresh;
+      item.updatedAt = now;
     }
-    item.prices = fresh;
-    item.updatedAt = now;
-  }
-  await writeList(mode, list);
+    await writeList(mode, current);
+    return current;
+  });
   res.json({ list, errors });
 });
 
