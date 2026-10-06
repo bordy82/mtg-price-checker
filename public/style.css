@@ -28,6 +28,8 @@
 }
 
 * { box-sizing: border-box; }
+/* `hidden` always wins over a component's display: flex / grid / inline-flex (#39). */
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--bg);
@@ -70,7 +72,6 @@ button.icon:disabled:hover { color: var(--muted); }
 
 .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.seg[hidden] { display: none; }
 .seg button { background: transparent; color: var(--muted); border-radius: 0; font-weight: 500; }
 .seg button.active { background: var(--ink); color: var(--panel); }
 
@@ -127,7 +128,6 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
   border-radius: 10px; background: var(--chip); box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
   pointer-events: none;
 }
-#card-preview[hidden] { display: none; }
 
 .card-name { font-weight: 600; }
 /* The name copies its front name on click (#25): a button that looks like the bold name text. */
@@ -165,12 +165,10 @@ button.copy-name:hover { text-decoration: underline; text-underline-offset: 3px;
 .grid th.chosen { color: var(--accent); }
 
 .move-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; font-size: 14px; }
-.move-bar[hidden] { display: none; }
 .move-bar select, .move-bar input {
   border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--panel); color: var(--ink); font: inherit;
 }
 .move-bar input { width: 16em; }
-.move-bar input[hidden] { display: none; }
 /* Sub-lists under the main list: "Selling to <store>" sections and wishlist lists. */
 .sub-list { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
 .sub-list h3 { font-size: 15px; margin: 0; }

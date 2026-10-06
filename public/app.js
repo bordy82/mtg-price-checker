@@ -12,6 +12,8 @@ const state = {
 };
 
 const $ = (sel) => document.querySelector(sel);
+// "Face to Face, Collect-Edition, 401 Games, and Game Keeper"
+const listText = (items) => new Intl.ListFormat('en', { type: 'conjunction' }).format(items);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const money = (n) => (n === null || n === undefined ? '—' : `$${n.toFixed(2)}`);
@@ -169,13 +171,14 @@ function startSearch() {
 async function search(q) {
   const status = $('#search-status');
   status.className = 'status';
-  status.textContent = `Searching ${state.stores.map((s) => s.label).join(' and ')}…`;
+  status.textContent = `Searching ${listText(state.stores.map((s) => s.label))}…`;
   $('#results').hidden = true;
   $('#filters').hidden = true;
   const { signal, isLatest } = startSearch();
   try {
     const data = await api(`/api/search?mode=${state.view}&q=${encodeURIComponent(q)}`, { signal });
     if (!isLatest()) return; // a newer search (or a tab switch) replaced this one
+    state.query = q;
     state.results = data.printings;
     state.filters = { finish: 'all', treatments: new Set() };
     const failed = Object.keys(data.errors || {});
@@ -242,6 +245,13 @@ function renderResults() {
   const table = $('#results');
   const rows = filteredResults();
   const total = state.results.length;
+  // Nothing found at all: say so, rather than an empty table that blames the filters (#39).
+  if (!total) {
+    const where = state.failedNote ? 'at the stores that answered' : 'at any store';
+    $('#search-status').textContent = `No card named "${state.query}" ${where}.${state.failedNote || ''}`;
+    table.hidden = true;
+    return;
+  }
   $('#search-status').textContent =
     (rows.length === total ? `${total} printings found` : `Showing ${rows.length} of ${total} printings`) +
     (state.failedNote || '');
