@@ -8,6 +8,7 @@ const state = {
   excluded: { sell: new Set(), buy: new Set() }, // stores left out of the comparison, per view
   moveTo: { sell: null, buy: null }, // sub-list picked in "Move starred cards to", per view ('' = new wishlist list)
   refreshing: new Set(), // price refreshes running, as `${view}:${sub-list id}` ('' = the whole list)
+  search: { seq: 0, abort: null }, // the latest search (#37): only its response may render
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -155,16 +156,26 @@ function storeHeaders(chosen) {
 
 // ---- search ----
 
+// Searches take 2–7 s uncached and are instant from the cache, so an older one can finish after a newer one (#37).
+// Each search (and clearResults) cancels the previous one; a response renders only if it's still the latest.
+function startSearch() {
+  state.search.abort?.abort();
+  const controller = new AbortController();
+  const seq = ++state.search.seq;
+  state.search.abort = controller;
+  return { signal: controller.signal, isLatest: () => seq === state.search.seq };
+}
+
 async function search(q) {
   const status = $('#search-status');
   status.className = 'status';
   status.textContent = `Searching ${state.stores.map((s) => s.label).join(' and ')}…`;
   $('#results').hidden = true;
   $('#filters').hidden = true;
-  const view = state.view;
+  const { signal, isLatest } = startSearch();
   try {
-    const data = await api(`/api/search?mode=${view}&q=${encodeURIComponent(q)}`);
-    if (view !== state.view) return; // switched modes while waiting
+    const data = await api(`/api/search?mode=${state.view}&q=${encodeURIComponent(q)}`, { signal });
+    if (!isLatest()) return; // a newer search (or a tab switch) replaced this one
     state.results = data.printings;
     state.filters = { finish: 'all', treatments: new Set() };
     const failed = Object.keys(data.errors || {});
@@ -176,12 +187,14 @@ async function search(q) {
     renderFilters();
     renderResults();
   } catch (err) {
+    if (!isLatest()) return; // aborted or outdated: no stale error message
     status.className = 'status error';
     status.textContent = err.message;
   }
 }
 
 function clearResults() {
+  startSearch(); // a search still running can't render afterwards
   state.results = [];
   $('#results').hidden = true;
   $('#filters').hidden = true;
