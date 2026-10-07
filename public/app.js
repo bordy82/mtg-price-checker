@@ -135,10 +135,13 @@ function bestStore(prices) {
 
 // Where a price links (#45): that offer's page at the store, or, for cards saved before links existed (no `url`
 // until their next refresh), the store's search for the front name in the current mode.
+// `{q}` / `{qq}` (encoded twice) as in searchLink() in lib/normalize.js.
 function storeLink(store, p, name) {
   if (p?.url) return p.url;
   const template = store?.links?.[state.view];
-  return template ? template.replace('{q}', encodeURIComponent(frontName(name))) : null;
+  if (!template) return null;
+  const q = encodeURIComponent(frontName(name));
+  return template.replace('{qq}', encodeURIComponent(q)).replace('{q}', q);
 }
 
 // One store's price for a card (a search result row or a list item: `prices` and `name`), linking to the card there.

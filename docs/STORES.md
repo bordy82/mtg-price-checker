@@ -22,7 +22,11 @@ The first question for any store: **does its site display cash or credit?** It d
   - Identity: `General_Card_Name`, `MTG_Set_Name`, `MTG_Collector_Number`, `MTG_Foil_Option`, `General_Alternate_Art_Qualifier[]`, `General_Card_Language`.
   - `variants[]`, one per condition (`selectedOptions[0].value` = `NM` / `PL`…), with retail `price`, `inventoryQuantity`, `sku`, and on the buylist index `sellPrice` (cash).
 - Set code comes from the SKU: `SIN-MTG-FIN-253-ENG-NM-NF` → `FIN`, `M-C15-…` → `C15`, `MP-Name-G05-3-…` → `G05`. `The List` is mapped to `LIST`.
-- **Link** (both modes): `https://facetofacegames.com/products/{handle}`, the exact printing. The product page also has "Add to sell" and the buylist cart; selling is a site-wide mode, not a separate URL (`buylist.facetofacegames.com` just redirects to the main site).
+- **Links**: the product page, `https://facetofacegames.com/products/{handle}` (the exact printing), with the site's mode set on the way:
+  - Buying vs selling is a **site-wide mode**, stored as a cart attribute (`/cart.js` → `attributes.site`: `shop` / `sell`). Every page shows only the current mode: a product page has "Add to cart" at the retail price **or** "Add to sell" at the buylist price, and `/search` queries the retail or the buylist index. `buylist.facetofacegames.com` just redirects to the main site.
+  - Selling: append `?site=sell`. Their pages handle it: they set the attribute to `sell`, then reload without the parameter.
+  - Buying: there's no `site=shop`, so the link is `https://facetofacegames.com/cart/update?attributes%5Bsite%5D=shop&return_to=<path>`: Shopify sets the attribute and redirects (cart items untouched). Without it, a buying link opened after a selling link would show the sell side. Their own SHOP button switches back the same way (their home page posts `site: 'shop'`).
+  - Searches (cards saved before links existed): `/search?q={q}&site=sell`, and for buying the cart update with `return_to=/search?q=…`, the name encoded twice (`{qq}`).
 
 Gotchas:
 - The keyword is **double** URL-encoded (`Aettir%2520and%2520Priwen`).

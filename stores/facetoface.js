@@ -24,12 +24,22 @@ const searchUrl = (name, page, mode) =>
 // Sets whose SKU code doesn't match what other stores use.
 const SET_CODE_BY_NAME = { 'The List': 'LIST' };
 
-// Store pages for a card (#45). The product page serves both modes: it has "Add to sell" and the buylist cart.
-// LINKS (searches) are for offers without a handle, and for the page's cards saved before links existed.
-const productUrl = (handle) => `https://facetofacegames.com/products/${handle}`;
+// Store pages for a card (#45). Buying vs selling is a site-wide mode at Face to Face, kept as a cart attribute
+// (`site`: `shop` / `sell`), and every page shows only the current mode: a product page has "Add to cart" at the
+// retail price or "Add to sell" at the buylist price. So each link sets the mode on the way:
+// - selling: their pages handle `?site=sell` (they set sell mode, then reload without the parameter);
+// - buying: there's no `site=shop`, so the link goes through Shopify's cart update, which sets the attribute and
+//   redirects to `return_to`; cart items are untouched. (Their own SHOP button switches back the same way.)
+// LINKS (searches) are for offers without a handle, and for the page's cards saved before links existed;
+// `{qq}` is the name encoded twice, since that search URL is itself a parameter.
+const SITE = 'https://facetofacegames.com';
+const linkInMode = (mode, path) =>
+  mode === 'sell'
+    ? `${SITE}${path}${path.includes('?') ? '&' : '?'}site=sell`
+    : `${SITE}/cart/update?attributes%5Bsite%5D=shop&return_to=${encodeURIComponent(path)}`;
 const LINKS = {
-  buy: 'https://facetofacegames.com/search?q={q}',
-  sell: 'https://facetofacegames.com/search?q={q}',
+  buy: `${SITE}/cart/update?attributes%5Bsite%5D=shop&return_to=%2Fsearch%3Fq%3D{qq}`,
+  sell: `${SITE}/search?q={q}&site=sell`,
 };
 
 // SKUs look like "SIN-MTG-FIN-253-ENG-NM-NF", "M-C15-Sol_Ring-268-NM-NF" or "MP-Sol_Ring-G05-3-NM-F".
@@ -63,7 +73,7 @@ function toOffer(src, mode) {
     condition: 'NM',
     image: nm.image?.url || src.media?.[0]?.url || null,
     raw: src.title,
-    url: src.handle ? productUrl(src.handle) : searchLink(LINKS[mode], src.General_Card_Name || src.title),
+    url: src.handle ? linkInMode(mode, `/products/${src.handle}`) : searchLink(LINKS[mode], src.General_Card_Name || src.title),
   };
 
   if (mode === 'buy') {
