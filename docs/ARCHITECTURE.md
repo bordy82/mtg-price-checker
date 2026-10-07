@@ -14,6 +14,7 @@ flowchart LR
   R --> G["gamekeeper.js"]
   C & Q --> SP["lib/storepass.js"]
   F & C & Q & G --> N["lib/normalize.js"]
+  F & SP & G --> H["lib/http.js"]
   S --> M["lib/match.js"]
   S <--> D[("data/list.json<br/>data/wishlist.json")]
 ```
@@ -68,6 +69,12 @@ Storepass platform.
 - It makes a count request (`with_count=true` gives `pages`), then fetches up to 10 pages of 24 in parallel and de-duplicates by product id.
 - One response carries both the buylist offers and the Shopify retail variants, so both modes use it.
 
+### `lib/http.js`
+Every store request goes through `getJson(url, { retries })` or `getText(url, { retries })` (Game Keeper's HTML):
+- The User-Agent is set here.
+- Each request times out after 15 s (`AbortSignal.timeout`, which also covers reading the body), with the error `timed out after 15 s for <url>` (#48). Without it, Node's fetch waits up to 5 minutes for the headers and 5 more for the body, so a store that accepted the connection and then stalled held up the whole search or refresh. A timed-out store is a failed store like any other: "couldn't reach", not cached, last prices kept on refresh.
+- Dropped connections and 5xx answers are retried `retries` times (default 1), after 750 ms, 1.5 s, 2.25 s… Game Keeper passes `retries: 3` (4 attempts). A 4xx isn't retried (it would fail again), and neither is a timeout: a stalled store would hold the search another 15 s per attempt.
+
 ### `lib/normalize.js`
 Turns each store's naming into comparable values:
 - `normFinish` maps finishes to `nonfoil`, `foil`, `etched`, or a special foil label (`surge foil`, `rainbow foil`…). `finishGroup` collapses those to `nonfoil` / `foil` / `etched` for matching.
@@ -78,7 +85,6 @@ Turns each store's naming into comparable values:
 - `printingKeys` / `looseKey`: the matching keys (below).
 - `coreVersions`: reduces version labels to core words for loose matching ("Borderless Poster" → `borderless`, "Showcase Scrolls" → `showcase`, "Bundle Promo" → `promo`). Labels with no core word are compared as-is.
 - `isSerialized`: a `…z` collector number **or** a "Serial Numbered" / "Serialized" label. Serialized copies get a `z` number in `printingKeys` and a `serial numbered` version in `looseKey`, so they never merge with the regular printing (stores mark them differently: F2F `748z`, CE `LTR-748 (Serial Numbered)`).
-- `getJson`, `UA`: the HTTP helper and User-Agent shared by all adapters.
 
 ### `lib/match.js` — `mergeOffers(offers, query, mode)`
 1. **Relevance filter**: store searches are fuzzy, so only offers whose name contains the query are kept.
@@ -144,6 +150,6 @@ matches if the row's primary key changes, for example when a store stops listing
 ## Limits and known gaps
 - Near Mint, English only. One row per printing. Only "Selling to <store>" lists have a quantity (`qty`).
 - Refresh takes about 3 s per distinct card name, 3 names at a time: about 80 s for 55 names (about 3 minutes one at a time). Keep it at 3: Game Keeper is flaky and every name hits every store.
-- Game Keeper has no collector numbers, so a few ambiguous printings stay unmerged. Its server is also flaky; requests retry 4 times with backoff.
+- Game Keeper has no collector numbers, so a few ambiguous printings stay unmerged. Its server is also flaky; its requests make 4 attempts with backoff.
 - Prerelease and promo printings are coded differently by each store and sometimes don't merge (e.g. F2F `PFIN 253s` vs CE `PRE 253`). Game Keeper files some promos under catch-all sets ("Miscellaneous Promos"), so those can't be matched.
 - Everything relies on undocumented store endpoints and page markup, which can change without notice. See [STORES.md](STORES.md) for how to re-check each one.

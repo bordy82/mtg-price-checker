@@ -2,7 +2,8 @@
 // Buylist: the price shown is CASH; store credit gets a 30% bonus at checkout.
 // Retail: same index without /buy; each condition variant has its price and stock.
 
-const { round2, normCollector, normFinish, normTreatment, searchLink, getJson } = require('../lib/normalize');
+const { round2, normCollector, normFinish, normTreatment, searchLink } = require('../lib/normalize');
+const { getJson } = require('../lib/http');
 
 const CREDIT_MULTIPLIER = 1.3;
 const PAGE_SIZE = 100;

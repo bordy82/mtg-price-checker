@@ -34,7 +34,7 @@ Full details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); per-store endp
 Update those docs when you change behavior they describe.
 
 - `server.js`: Express 5. `searchAll(query, { mode })` calls every store in parallel and merges the results. Results are cached 10 min per mode and query; results with a failed store aren't cached. `/api/refresh` keeps a failed store's last known prices. Errors go back as JSON.
-- `stores/*.js`: one adapter per store, exporting `{ id, label, creditNote, links, search, searchRetail }`. `search` returns buylist offers (`cash`, `credit`); `searchRetail` returns retail listings (`price`, `stock`). They share an identity part: `name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments, image`. The HTTP helper and User-Agent live in `lib/normalize.js`.
+- `stores/*.js`: one adapter per store, exporting `{ id, label, creditNote, links, search, searchRetail }`. `search` returns buylist offers (`cash`, `credit`); `searchRetail` returns retail listings (`price`, `stock`). They share an identity part: `name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments, image`. Requests go through `lib/http.js` (`getJson`, `getText`: User-Agent, 15 s timeout, retries).
 - `lib/match.js`: `mergeOffers(offers, query, mode)` makes one row per printing.
   - Pass 1 uses strict keys (`printingKeys`).
   - Pass 2 handles offers without a collector number using `looseKey`. They merge only when exactly one row matches; if several do, the exact special-foil label can narrow it down.
@@ -66,7 +66,7 @@ Update those docs when you change behavior they describe.
   - Price is **cash**; credit = cash × 1.3. The user confirmed 30%; the French policy page wrongly says 50%.
   - No collector number unless the name has one (`Sol Ring (0408)`).
   - Retail stock = the `max` of the quantity select.
-  - The server often drops connections or returns 502 (plain curl too), so requests retry 4× with backoff. Keep request volume low.
+  - The server often drops connections or returns 502 (plain curl too), so its requests make 4 attempts with backoff (`getText(url, { retries: 3 })`). Keep request volume low.
 
 ## Conventions
 
