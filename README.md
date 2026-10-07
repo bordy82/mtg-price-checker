@@ -19,6 +19,7 @@ Supported stores:
 - Search a card by name and see every printing side by side across all stores. Printings are matched by set, collector number and finish.
 - Filter results by finish (non-foil, foil, etched) and version (normal, borderless, showcase, extended art…).
 - Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click (or just one wishlist list, with its own **Refresh**). The button shows its progress (`Refreshing 12 / 55…`).
+- After a refresh, each list price that moved shows how much under it (`▲ $1.30`), green when it's better for you (a higher offer when selling, a lower price when buying) and red when worse; hover it for the old price and date. A wishlist card that came back in stock says so. "Prices from …" also says how many prices changed.
 - Click a card's name (in the search results or any list) to copy it, ready to paste into a store's site; a small "✓ Copied" flashes next to it. Two-name cards copy only the front name (`Clive Rosfield - Vial Smasher the Fierce` → `Clive Rosfield`), which every store's search finds.
 - Click a price to open that card at the store, in a new tab: the exact printing's page where the store has one (the buylist search for Collect-Edition and 401 Games when selling).
 - Lists are sorted by card name. Star the cards you're actually selling or buying: they're pinned to the top, with their own subtotal.
