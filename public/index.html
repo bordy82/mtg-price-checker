@@ -24,7 +24,11 @@
   <main>
     <section class="panel">
       <form id="search-form" class="search">
-        <input id="search-input" type="search" placeholder="Card name, e.g. Aettir and Priwen" autocomplete="off" required minlength="2">
+        <div class="search-box">
+          <input id="search-input" type="search" placeholder="Card name, e.g. Aettir and Priwen" autocomplete="off" required minlength="2"
+            role="combobox" aria-autocomplete="list" aria-controls="suggestions" aria-expanded="false">
+          <ul id="suggestions" class="suggestions" role="listbox" aria-label="Card names" hidden></ul>
+        </div>
         <button type="submit">Search</button>
       </form>
       <div id="filters" class="filters" hidden></div>

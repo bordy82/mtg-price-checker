@@ -4,6 +4,7 @@ const express = require('express');
 const stores = require('./stores');
 const { mergeOffers } = require('./lib/match');
 const { frontName } = require('./lib/normalize');
+const { getJson } = require('./lib/http');
 
 const PORT = process.env.PORT || 3000;
 // DATA_DIR lets a test server work on copies of the lists (see `npm run start:test`).
@@ -55,6 +56,47 @@ app.get('/api/search', async (req, res) => {
   if (q.length < 2) return res.status(400).json({ error: 'Type at least 2 characters' });
   const { printings, errors, at } = await searchAll(q, { mode: modeOf(req) });
   res.json({ query: q, printings, errors, fetchedAt: at });
+});
+
+// ---- card name suggestions while typing (#52): Scryfall's autocomplete, through the server ----
+// Scryfall's API guidelines ask for the app's own User-Agent, an Accept header (getJson sends it) and 50–100 ms
+// between requests. The page waits for a pause in typing, so this stays far below that; answers are cached too.
+
+const SCRYFALL = 'https://api.scryfall.com';
+const SCRYFALL_UA = `mtg-price-checker/${require('./package.json').version}`;
+const SCRYFALL_GAP_MS = 100;
+const SUGGEST_TTL_MS = 24 * 60 * 60 * 1000; // card names only change when a set comes out
+const SUGGEST_MAX = 1000; // cached answers; the oldest goes first
+const suggestCache = new Map(); // lowercased text -> { at, names }
+let scryfallNext = 0; // when the next Scryfall request may start
+
+async function suggestNames(text) {
+  const key = text.toLowerCase();
+  const hit = suggestCache.get(key);
+  if (hit && Date.now() - hit.at < SUGGEST_TTL_MS) return hit.names;
+  const wait = scryfallNext - Date.now();
+  scryfallNext = Math.max(Date.now(), scryfallNext) + SCRYFALL_GAP_MS;
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  // No retry and a short timeout: by then the user has typed on or searched.
+  const { data } = await getJson(`${SCRYFALL}/cards/autocomplete?q=${encodeURIComponent(text)}`,
+    { userAgent: SCRYFALL_UA, timeoutMs: 5000, retries: 0 });
+  const names = Array.isArray(data) ? data : [];
+  suggestCache.delete(key);
+  suggestCache.set(key, { at: Date.now(), names });
+  if (suggestCache.size > SUGGEST_MAX) suggestCache.delete(suggestCache.keys().next().value);
+  return names;
+}
+
+app.get('/api/suggest', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ names: [] });
+  try {
+    res.json({ names: await suggestNames(q) });
+  } catch (err) {
+    // No suggestions, no error: searching works without them.
+    console.error(`[scryfall] ${err.message}`);
+    res.json({ names: [] });
+  }
 });
 
 // ---- saved lists (sell: cards to sell, buy: wishlist) ----
