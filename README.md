@@ -61,6 +61,7 @@ stores/              one adapter per store
   gamekeeper.js        Crystal Commerce HTML pages (no JSON API)
   index.js             store registry
 lib/
+  http.js              store requests: User-Agent, 15 s timeout, retries
   match.js             merges offers from all stores into one row per printing
   normalize.js         names, finishes, versions, set names, matching keys
   storepass.js         shared fetching for Storepass-hosted buylists

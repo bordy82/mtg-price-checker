@@ -4,7 +4,8 @@
 // Listings have no collector number unless the name carries one ("Sol Ring (0408)"),
 // so most offers are matched to other stores by name + set + finish + version (see lib/match.js).
 
-const { round2, normCollector, normFinish, normTreatment, normName, searchLink, UA } = require('../lib/normalize');
+const { round2, normCollector, normFinish, normTreatment, normName, searchLink } = require('../lib/normalize');
+const { getText } = require('../lib/http');
 
 const BASE = 'https://www.gamekeeperonline.com';
 const CREDIT_MULTIPLIER = 1.3; // Buy/Sell policy (EN): +30% on Magic store credit (the FR page says 50%; confirmed 30%)
@@ -94,23 +95,10 @@ function parseProducts(html) {
     .filter(Boolean);
 }
 
-// The site often drops connections or answers 502 (plain curl too); failures are fast, so retry with backoff.
-async function fetchHtml(url, attempts = 4) {
-  for (let i = 1; ; i++) {
-    try {
-      const res = await fetch(url, { headers: { 'User-Agent': UA } });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
-      return await res.text();
-    } catch (err) {
-      if (i >= attempts) throw err;
-      await new Promise((r) => setTimeout(r, 750 * i));
-    }
-  }
-}
-
 async function fetchPage(mode, name, page) {
   const url = `${BASE}${PATHS[mode]}?c=1&page=${page}&q=${encodeURIComponent(name)}`;
-  const html = await fetchHtml(url);
+  // The site often drops connections or answers 502 (plain curl too); failures are fast, so 4 attempts, not 2.
+  const html = await getText(url, { retries: 3 });
   return { products: parseProducts(html), hasNext: html.includes(`page=${page + 1}&`) };
 }
 

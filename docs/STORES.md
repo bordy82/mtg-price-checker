@@ -87,7 +87,7 @@ Gotchas:
 Gotchas:
 - Search is fuzzy and relevance-sorted, so it returns unrelated cards after the real matches. Paging stops at the first page with no name match (max 8 pages).
 - Credit bonus: the English buy/sell policy says +30% for Magic; the French page says +50%. **30% is correct** (confirmed by the user).
-- The server often drops connections or returns 502, even for plain `curl`. Requests retry 4 times with backoff. Keep request volume low.
+- The server often drops connections or returns 502, even for plain `curl`. Its requests make 4 attempts with backoff (`getText(url, { retries: 3 })` in `lib/http.js`; the other stores get 2). Keep request volume low.
 
 ---
 
@@ -96,6 +96,7 @@ Gotchas:
 1. Open the store's buylist or search page with the browser's network tab open and look for a JSON request. If there isn't one, plan on parsing the HTML.
 2. Note whether the site shows cash or credit, and the credit bonus (policy page or checkout script).
 3. Write `stores/<store>.js`:
+   - Fetch with `getJson` / `getText` from `lib/http.js` (User-Agent, 15 s timeout, retries).
    - Build the identity (`name, setName, setCode, collectorNumber, finish, treatments, image`) with the helpers in `lib/normalize.js`.
    - Return `{ cash, credit, retail }` from `search`, and `{ price, stock }` from `searchRetail`, each with `url`: the card's page at the store in that mode (or its search, via `searchLink`).
    - Export `links: { buy, sell }`, the store's search pages with `{q}` for the card name.
