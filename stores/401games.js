@@ -3,12 +3,19 @@
 // The site prices from the product's top-level offer_price; the per-condition entries are stale.
 // Retail: variant_info carries the Shopify store's price + inventory per condition (matches store.401games.ca).
 
-const { round2, normCollector, normFinish, normTreatment } = require('../lib/normalize');
+const { round2, normCollector, normFinish, normTreatment, searchLink } = require('../lib/normalize');
 const { fetchProducts } = require('../lib/storepass');
 
 const HOST = 'buylist.401games.ca';
 const STORE_ID = 'USYSFNJ9bg';
 const CREDIT_MULTIPLIER = 1.3;
+
+// Store pages for a card (#45). Retail: Shopify's /variants/<id> redirects to the product page with that variant
+// (NM) selected. The buylist has no product pages; its search reads `q` (and needs the product line).
+const LINKS = {
+  buy: 'https://store.401games.ca/search?q={q}',
+  sell: `https://${HOST}/retailer/buylist?q={q}&product_line=Magic%3A%20the%20Gathering`,
+};
 
 const KNOWN_TREATMENTS = new Set(['borderless', 'extended art', 'showcase', 'retro frame', 'full art']);
 
@@ -65,7 +72,8 @@ function toOffer(p, mode) {
 
   if (mode === 'buy') {
     const price = Number(nmRetail.price) > 0 ? round2(Number(nmRetail.price)) : null;
-    return { ...identity, price, stock: Math.max(0, Number(nmRetail.inventory_quantity) || 0) };
+    const url = nmRetail.id ? `https://store.401games.ca/variants/${nmRetail.id}` : searchLink(LINKS.buy, name);
+    return { ...identity, price, stock: Math.max(0, Number(nmRetail.inventory_quantity) || 0), url };
   }
   const cash = Number(p.offer_price) > 0 ? round2(Number(p.offer_price)) : null;
   return {
@@ -73,6 +81,7 @@ function toOffer(p, mode) {
     cash,
     credit: cash === null ? null : round2(cash * CREDIT_MULTIPLIER),
     retail: Number(p.price) || null,
+    url: searchLink(LINKS.sell, name),
   };
 }
 
@@ -88,6 +97,7 @@ module.exports = {
   id: '401',
   label: '401 Games',
   creditNote: 'cash + 30%',
+  links: LINKS,
   search,
   searchRetail,
 };

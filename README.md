@@ -20,6 +20,7 @@ Supported stores:
 - Filter results by finish (non-foil, foil, etched) and version (normal, borderless, showcase, extended art…).
 - Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click (or just one wishlist list, with its own **Refresh**). The button shows its progress (`Refreshing 12 / 55…`).
 - Click a card's name (in the search results or any list) to copy it, ready to paste into a store's site; a small "✓ Copied" flashes next to it. Two-name cards copy only the front name (`Clive Rosfield - Vial Smasher the Fierce` → `Clive Rosfield`), which every store's search finds.
+- Click a price to open that card at the store, in a new tab: the exact printing's page where the store has one (the buylist search for Collect-Edition and 401 Games when selling).
 - Lists are sorted by card name. Star the cards you're actually selling or buying: they're pinned to the top, with their own subtotal.
 - Removed a card by mistake? "Removed <card> · **Undo**" shows for 8 seconds and puts it back exactly as it was (star, list, quantity).
 - When selling, move the starred cards to a store: they go into a "Selling to <store>" list under the main one (all stores' offers still shown, that store highlighted). Unstar a card to send it back. Each card in a store list has a faint **+** to add copies (it then shows **− 2× +**); the store totals count every copy. Each store list has a **Print** button for a printable sheet with that store's credit and cash prices (line totals per quantity). Once you've entered the list on the store's own buylist, **Clear list** removes those cards from your sell list for good (after a confirmation; they don't go back to the main list).
@@ -89,7 +90,7 @@ Each store adapter exports:
 
 1. Find the store's search data, ideally a JSON request in the browser's network tab, otherwise the HTML.
 2. Check what the site displays: some show **cash**, others show **credit** directly.
-3. Create `stores/<store>.js` exporting `{ id, label, creditNote, search, searchRetail }`, returning the offer shapes above.
+3. Create `stores/<store>.js` exporting `{ id, label, creditNote, links, search, searchRetail }`, returning the offer shapes above (each with a `url` to the card at the store).
 4. Add it to `stores/index.js`. The UI adds a column automatically.
 
 The full checklist is in [docs/STORES.md](docs/STORES.md#adding-a-store).

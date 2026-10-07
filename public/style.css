@@ -159,6 +159,9 @@ button.copy-name:hover { text-decoration: underline; text-underline-offset: 3px;
 .price.best { background: var(--best); color: var(--best-ink); }
 .price.best .alt { color: inherit; opacity: .75; }
 .price.none { color: var(--muted); }
+/* Each price opens the card at that store (#45): it looks the same, with an underline on hover. */
+a.price-link { color: inherit; text-decoration: none; }
+a.price-link:hover .main { text-decoration: underline; text-underline-offset: 3px; }
 .price.oos { color: var(--muted); opacity: .6; }
 /* A store left out of the comparison: its column stays readable but dimmed. */
 .grid .excluded { opacity: .4; }

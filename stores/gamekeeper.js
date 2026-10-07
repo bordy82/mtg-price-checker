@@ -4,7 +4,7 @@
 // Listings have no collector number unless the name carries one ("Sol Ring (0408)"),
 // so most offers are matched to other stores by name + set + finish + version (see lib/match.js).
 
-const { round2, normCollector, normFinish, normTreatment, normName, UA } = require('../lib/normalize');
+const { round2, normCollector, normFinish, normTreatment, normName, searchLink, UA } = require('../lib/normalize');
 
 const BASE = 'https://www.gamekeeperonline.com';
 const CREDIT_MULTIPLIER = 1.3; // Buy/Sell policy (EN): +30% on Magic store credit (the FR page says 50%; confirmed 30%)
@@ -48,6 +48,13 @@ function parseName(title) {
 
 const PATHS = { sell: '/buylist/search', buy: '/products/search' };
 
+// Store pages for a card (#45): each listing links its product page (/catalog/... retail, /buylist/... buylist);
+// these searches are for the page's cards saved before links existed.
+const LINKS = {
+  buy: `${BASE}/products/search?c=1&q={q}`,
+  sell: `${BASE}/buylist/search?c=1&q={q}`,
+};
+
 // Each variant row starts with its label ("NM-Mint, English", "Light Play, English", "Out of stock.")
 // and holds a "CAD$ 13.20" price and, when orderable, a quantity selector with max="N".
 function parseVariants(block) {
@@ -69,6 +76,8 @@ function parseProducts(html) {
       const title = /itemprop="name"[^>]*>([^<]+)</.exec(block)?.[1];
       const setName = /<span class="category">([^<]+)</.exec(block)?.[1];
       const image = /<img src="([^"]+)"/.exec(block)?.[1];
+      // The product's own page: /catalog/<set>/<card>/<id> or /buylist/<set>/<card>/<id> (the set's page has no card part).
+      const href = /href="(\/(?:catalog|buylist)\/[^/"]+\/[^/"]+\/\d+)"/.exec(block)?.[1];
       if (!title) return null;
       const variants = parseVariants(block);
       const nm = variants.find((v) => v.label.startsWith('NM-Mint, English'));
@@ -77,6 +86,7 @@ function parseProducts(html) {
         title: decode(title),
         setName: setName && decode(setName),
         image,
+        href,
         price: nm?.price || soldOut?.price || 0,
         stock: nm ? nm.max : 0,
       };
@@ -123,6 +133,7 @@ async function fetchMatching(mode, query) {
     condition: 'NM',
     image: p.image || null,
     raw: p.title,
+    url: p.href ? BASE + p.href : searchLink(LINKS[mode], p.title),
     price: p.price,
     stock: p.stock,
   }));
@@ -143,6 +154,7 @@ module.exports = {
   id: 'gk',
   label: 'Game Keeper',
   creditNote: 'cash + 30%',
+  links: LINKS,
   search,
   searchRetail,
 };

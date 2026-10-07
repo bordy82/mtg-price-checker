@@ -47,7 +47,7 @@ async function searchAll(fullQuery, { mode = 'sell', force = false } = {}) {
 }
 
 app.get('/api/stores', (req, res) => {
-  res.json(stores.map(({ id, label, creditNote }) => ({ id, label, creditNote })));
+  res.json(stores.map(({ id, label, creditNote, links }) => ({ id, label, creditNote, links })));
 });
 
 app.get('/api/search', async (req, res) => {

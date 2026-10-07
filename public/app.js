@@ -134,14 +134,30 @@ function bestStore(prices) {
   return best;
 }
 
-function priceCell(prices, storeId, best, chosen) {
+// Where a price links (#45): that offer's page at the store, or, for cards saved before links existed (no `url`
+// until their next refresh), the store's search for the front name in the current mode.
+// `{q}` / `{qq}` (encoded twice) as in searchLink() in lib/normalize.js.
+function storeLink(store, p, name) {
+  if (p?.url) return p.url;
+  const template = store?.links?.[state.view];
+  if (!template) return null;
+  const q = encodeURIComponent(frontName(name));
+  return template.replace('{qq}', encodeURIComponent(q)).replace('{q}', q);
+}
+
+// One store's price for a card (a search result row or a list item: `prices` and `name`), linking to the card there.
+function priceCell(card, storeId, best, chosen) {
   const { value, eligible, alt } = cfg();
-  const p = prices?.[storeId];
+  const p = card.prices?.[storeId];
   const v = value(p);
   if (!v) return `<td class="${colClass(storeId, chosen)}"><span class="price none">—</span></td>`;
   const cls = storeId === best ? 'best' : eligible(p) ? '' : 'oos';
-  return `<td class="${colClass(storeId, chosen)}"><span class="price ${cls}">
-    <span class="main">${money(v)}</span><span class="alt">${esc(alt(p))}</span></span></td>`;
+  const price = `<span class="price ${cls}"><span class="main">${money(v)}</span><span class="alt">${esc(alt(p))}</span></span>`;
+  const store = state.stores.find((s) => s.id === storeId);
+  const href = storeLink(store, p, card.name);
+  if (!href) return `<td class="${colClass(storeId, chosen)}">${price}</td>`;
+  return `<td class="${colClass(storeId, chosen)}"><a class="price-link" href="${esc(href)}" target="_blank" rel="noopener"
+    title="${esc(`Open at ${store.label}`)}">${price}</a></td>`;
 }
 
 // Clicking a store's header leaves it out of the comparison (its column dims); clicking again brings it back.
@@ -265,7 +281,7 @@ function renderResults() {
           ${thumb(p.image)}
           <td><div class="card-name">${nameButton(p.name)}</div>${printingLine(p)}</td>
           <td>${printingTags(p) || '<span class="muted">Normal</span>'}</td>
-          ${state.stores.map((s) => priceCell(p.prices, s.id, best)).join('')}
+          ${state.stores.map((s) => priceCell(p, s.id, best)).join('')}
           <td class="add-cell">
             ${inList ? '<span class="added">✓ In list</span>' : `<button class="small" data-add="${esc(p.key)}">Add</button>`}
           </td>
@@ -378,7 +394,7 @@ function listTable(items, { subtotal = false, chosen = null, qty = false } = {})
       <td><button class="icon star${item.starred ? ' on' : ''}" data-star="${key}" title="${esc(c.starTitle)}" aria-pressed="${Boolean(item.starred)}">${item.starred ? '★' : '☆'}</button></td>
       ${thumb(item.image)}
       <td><div class="card-name">${nameButton(item.name)} ${printingTags(item)}</div>${qty ? qtyStepper(item) : ''}${printingLine(item)}</td>
-      ${state.stores.map((s) => priceCell(item.prices, s.id, best, chosen)).join('')}
+      ${state.stores.map((s) => priceCell(item, s.id, best, chosen)).join('')}
       <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
     </tr>`;
   });

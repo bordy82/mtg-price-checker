@@ -34,7 +34,7 @@ Full details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); per-store endp
 Update those docs when you change behavior they describe.
 
 - `server.js`: Express 5. `searchAll(query, { mode })` calls every store in parallel and merges the results. Results are cached 10 min per mode and query; results with a failed store aren't cached. `/api/refresh` keeps a failed store's last known prices. Errors go back as JSON.
-- `stores/*.js`: one adapter per store, exporting `{ id, label, creditNote, search, searchRetail }`. `search` returns buylist offers (`cash`, `credit`); `searchRetail` returns retail listings (`price`, `stock`). They share an identity part: `name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments, image`. The HTTP helper and User-Agent live in `lib/normalize.js`.
+- `stores/*.js`: one adapter per store, exporting `{ id, label, creditNote, links, search, searchRetail }`. `search` returns buylist offers (`cash`, `credit`); `searchRetail` returns retail listings (`price`, `stock`). They share an identity part: `name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments, image`. The HTTP helper and User-Agent live in `lib/normalize.js`.
 - `lib/match.js`: `mergeOffers(offers, query, mode)` makes one row per printing.
   - Pass 1 uses strict keys (`printingKeys`).
   - Pass 2 handles offers without a collector number using `looseKey`. They merge only when exactly one row matches; if several do, the exact special-foil label can narrow it down.
