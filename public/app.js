@@ -34,6 +34,7 @@ const MODES = {
     eligible: (p) => p?.[state.sellValue] > 0,
     better: (a, b) => a > b,
     alt: (p) => `${otherValue()} ${money(p[otherValue()])}`,
+    backText: null, // a store starting to buy a card shows no change (#51)
     totalLabel: () => `Total ${state.sellValue} if everything goes to…`,
     missingLabel: (n) => `${n} not bought`,
     starTitle: 'Star: actually selling this',
@@ -55,6 +56,7 @@ const MODES = {
     eligible: (p) => p?.price > 0 && p.stock > 0,
     better: (a, b) => a < b,
     alt: (p) => (p.stock > 0 ? `${p.stock} in stock` : 'out of stock'),
+    backText: 'back in stock', // a card that wasn't available at the last refresh and is now (#51)
     totalLabel: () => 'Total cost if bought at…',
     missingLabel: (n) => `${n} unavailable`,
     starTitle: 'Star: actually buying this',
@@ -145,14 +147,40 @@ function storeLink(store, p, name) {
   return template.replace('{qq}', encodeURIComponent(q)).replace('{q}', q);
 }
 
+// How a list item's price at one store changed at its last refresh (#51): `{ text, better, title }`, or null.
+// /api/refresh keeps the prices it replaced in `prevPrices`; search results and cards not refreshed since being
+// added have none. Selling compares the value the switch shows, buying the price.
+const shortDate = (ts) => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric' });
+
+function priceChange(card, storeId) {
+  if (!card.prevPrices) return null;
+  const { value, eligible, better, backText } = cfg();
+  const p = card.prices?.[storeId];
+  const was = card.prevPrices[storeId];
+  const when = card.prevUpdatedAt ? ` (${shortDate(card.prevUpdatedAt)})` : '';
+  if (backText && eligible(p) && !eligible(was)) return { text: backText, better: true, title: `Was out of stock${when}` };
+  const [now, before] = [value(p), value(was)];
+  if (!(now > 0 && before > 0) || Math.abs(now - before) < 0.005) return null;
+  return { text: `${now > before ? '▲' : '▼'} ${money(Math.abs(now - before))}`, better: better(now, before), title: `Was ${money(before)}${when}` };
+}
+
+// "4 prices changed" at the last refresh of these cards, or ''.
+function changedText(items) {
+  const n = items.reduce((sum, item) => sum + state.stores.filter((s) => priceChange(item, s.id)).length, 0);
+  return n ? `${n} price${n === 1 ? '' : 's'} changed` : '';
+}
+
 // One store's price for a card (a search result row or a list item: `prices` and `name`), linking to the card there.
+// Under it, how it changed at the last refresh (list items only, see priceChange): green when better for the user.
 function priceCell(card, storeId, best, chosen) {
   const { value, eligible, alt } = cfg();
   const p = card.prices?.[storeId];
   const v = value(p);
   if (!v) return `<td class="${colClass(storeId, chosen)}"><span class="price none">—</span></td>`;
   const cls = storeId === best ? 'best' : eligible(p) ? '' : 'oos';
-  const price = `<span class="price ${cls}"><span class="main">${money(v)}</span><span class="alt">${esc(alt(p))}</span></span>`;
+  const change = priceChange(card, storeId);
+  const price = `<span class="price ${cls}"><span class="main">${money(v)}</span><span class="alt">${esc(alt(p))}</span></span>` +
+    (change ? `<span class="change ${change.better ? 'better' : 'worse'}" title="${esc(change.title)}">${esc(change.text)}</span>` : '');
   const store = state.stores.find((s) => s.id === storeId);
   const href = storeLink(store, p, card.name);
   if (!href) return `<td class="${colClass(storeId, chosen)}">${price}</td>`;
@@ -462,7 +490,7 @@ function renderSubLists(list) {
     const refreshing = state.refreshing.get(`${state.view}:${g.id}`);
     // Wishlist lists (#33) refresh on their own and show their own prices' age.
     const refresh = g.refresh
-      ? `<span class="muted" data-age="${esc(g.id)}">${esc(pricesAge(items))}</span>
+      ? `<span class="muted" data-age="${esc(g.id)}">${esc(pricesInfo(items))}</span>
         <button class="ghost small" data-refresh="${esc(g.id)}"${refreshing ? ' disabled' : ''}>${refreshing ? refreshingText(refreshing) : 'Refresh'}</button>`
       : '';
     return `<section class="sub-list">
@@ -522,10 +550,13 @@ function pricesAge(items) {
   return `Prices from ${ago}`;
 }
 
+// "Prices from 3 h ago · 4 prices changed"
+const pricesInfo = (items) => [pricesAge(items), changedText(items)].filter(Boolean).join(' · ');
+
 function renderUpdated() {
-  $('#updated').textContent = pricesAge(currentList());
+  $('#updated').textContent = pricesInfo(currentList());
   for (const el of document.querySelectorAll('[data-age]')) {
-    el.textContent = pricesAge(currentList().filter((item) => groupOf(item) === el.dataset.age));
+    el.textContent = pricesInfo(currentList().filter((item) => groupOf(item) === el.dataset.age));
   }
 }
 
@@ -649,7 +680,10 @@ async function refreshPrices(groupId = '') {
     const fresh = new Map(list.filter((item) => wanted.has(item.key)).map((item) => [item.key, item]));
     for (const item of state.lists[view]) {
       const f = fresh.get(item.key);
-      if (f) { item.prices = f.prices; item.updatedAt = f.updatedAt; }
+      if (f) {
+        const { prices, updatedAt, prevPrices, prevUpdatedAt } = f;
+        Object.assign(item, { prices, updatedAt, prevPrices, prevUpdatedAt });
+      }
     }
     Object.keys(errors || {}).forEach((id) => failedStores.add(id));
   }

@@ -135,6 +135,9 @@ app.post('/api/refresh', async (req, res) => {
       for (const id of Object.keys(result.errors)) {
         if (item.prices?.[id]) fresh[id] = item.prices[id];
       }
+      // The page shows what changed at this refresh (#51), so a refresh with no change clears the arrows.
+      item.prevPrices = item.prices;
+      item.prevUpdatedAt = item.updatedAt;
       item.prices = fresh;
       item.updatedAt = now;
     }
