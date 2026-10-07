@@ -98,9 +98,26 @@ async function api(path, options = {}) {
 
 // ---- shared rendering helpers ----
 
+// Card images at the size they're shown (#41). Stores link their full-size scans (Face to Face's are 1469 px wide,
+// ~100 KB each); Shopify's CDN, used by every store but Game Keeper, resizes on `width=`. Other URLs stay as they are.
+// The saved `image` keeps the full URL; only what the page loads is resized.
+const THUMB_PX = 80; // 34 px thumbnail, sharp on 2× screens
+const PREVIEW_PX = 480; // 230 px hover preview (#card-preview)
+function sized(url, px) {
+  try {
+    const u = new URL(url, location.href);
+    if (u.hostname !== 'cdn.shopify.com') return url;
+    u.searchParams.set('width', px);
+    return u.href;
+  } catch {
+    return url;
+  }
+}
+
 function thumb(image) {
   if (!image) return '<td class="thumb"></td>';
-  return `<td class="thumb" data-preview="${esc(image)}"><img src="${esc(image)}" alt="" loading="lazy"></td>`;
+  return `<td class="thumb" data-preview="${esc(sized(image, PREVIEW_PX))}"><img src="${esc(sized(image, THUMB_PX))}" alt=""
+    loading="lazy" decoding="async"></td>`;
 }
 
 function printingTags(p) {
