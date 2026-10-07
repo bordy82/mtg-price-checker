@@ -856,6 +856,7 @@ document.addEventListener('click', async (e) => {
 
 $('#search-form').addEventListener('submit', (e) => {
   e.preventDefault();
+  closeSuggestions();
   search($('#search-input').value.trim());
 });
 
@@ -870,6 +871,102 @@ $('#search-form').addEventListener('submit', (e) => {
   input.addEventListener('mouseup', (e) => {
     if (focusingClick) e.preventDefault();
     focusingClick = false;
+  });
+}
+
+// ---- card name suggestions (#52) ----
+// From 2 characters, a 200 ms pause in typing asks /api/suggest (Scryfall's card names, through the server).
+// ↑ / ↓ move through the list (past either end back to what was typed), Enter or a click picks a name and searches
+// it, Esc or leaving the field closes it. Enter with nothing picked searches what was typed, as before.
+// If Scryfall can't be reached the list just doesn't open. Picked two-faced names ("A // B") work as is: the server
+// searches stores with the front name.
+const SUGGEST_DELAY_MS = 200;
+const suggest = { timer: null, seq: 0, names: [], active: -1 };
+
+function renderSuggestions() {
+  const list = $('#suggestions');
+  list.innerHTML = suggest.names
+    .map((name, i) => `<li id="suggestion-${i}" role="option" data-index="${i}" aria-selected="false">${esc(name)}</li>`)
+    .join('');
+  list.hidden = !suggest.names.length;
+  $('#search-input').setAttribute('aria-expanded', String(!list.hidden));
+  setActiveSuggestion(-1);
+}
+
+// -1 = none: the field keeps what was typed.
+function setActiveSuggestion(index) {
+  suggest.active = index;
+  const options = [...$('#suggestions').children];
+  options.forEach((li, i) => {
+    li.classList.toggle('active', i === index);
+    li.setAttribute('aria-selected', String(i === index));
+  });
+  const input = $('#search-input');
+  if (index < 0) input.removeAttribute('aria-activedescendant');
+  else input.setAttribute('aria-activedescendant', options[index].id);
+}
+
+function closeSuggestions() {
+  clearTimeout(suggest.timer);
+  suggest.seq++; // an answer still on its way can't open the list
+  if (!suggest.names.length) return;
+  suggest.names = [];
+  renderSuggestions();
+}
+
+async function loadSuggestions(text) {
+  const seq = ++suggest.seq;
+  let names = [];
+  try { ({ names } = await api(`/api/suggest?q=${encodeURIComponent(text)}`)); } catch {}
+  if (seq !== suggest.seq) return; // typed on, picked, searched or closed meanwhile
+  suggest.names = names;
+  renderSuggestions();
+}
+
+function pickSuggestion(index) {
+  const name = suggest.names[index];
+  if (!name) return;
+  $('#search-input').value = name;
+  closeSuggestions();
+  search(name);
+}
+
+{
+  const input = $('#search-input');
+  input.addEventListener('input', () => {
+    clearTimeout(suggest.timer);
+    const text = input.value.trim();
+    if (text.length < 2) { closeSuggestions(); return; }
+    suggest.timer = setTimeout(() => loadSuggestions(text), SUGGEST_DELAY_MS);
+  });
+  input.addEventListener('keydown', (e) => {
+    const n = suggest.names.length;
+    if (!n || e.isComposing) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); // the cursor stays where it is
+      // Positions 0…n, where 0 is what was typed: past either end wraps through it.
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setActiveSuggestion(((suggest.active + 1 + step + n + 1) % (n + 1)) - 1);
+      $('#suggestions').children[suggest.active]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && suggest.active >= 0) {
+      e.preventDefault(); // not the form's search of what was typed
+      pickSuggestion(suggest.active);
+    } else if (e.key === 'Escape') {
+      e.preventDefault(); // a search field would also clear itself
+      closeSuggestions();
+    }
+  });
+  input.addEventListener('blur', closeSuggestions);
+
+  const list = $('#suggestions');
+  list.addEventListener('mousedown', (e) => e.preventDefault()); // the field keeps the focus, so it doesn't close
+  list.addEventListener('click', (e) => {
+    const li = e.target.closest('[data-index]');
+    if (li) pickSuggestion(Number(li.dataset.index));
+  });
+  list.addEventListener('mouseover', (e) => {
+    const li = e.target.closest('[data-index]');
+    if (li && Number(li.dataset.index) !== suggest.active) setActiveSuggestion(Number(li.dataset.index));
   });
 }
 
