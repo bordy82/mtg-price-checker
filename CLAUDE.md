@@ -28,6 +28,10 @@ gh project item-edit --id <ITEM_ID> --project-id PVT_kwHOBZQit84BlhH6 \
 
 (Item IDs come from `gh project item-list 10 --owner bordy82 --format json`.)
 
+## Product decisions
+
+[docs/DECISIONS.md](docs/DECISIONS.md) lists what the user decided, often against an obvious alternative (no Best column, no toast, quantities only in store lists…). **Check it before proposing features**, and update it when the user decides something new.
+
 ## Architecture
 
 Full details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); per-store endpoints and fields are in [docs/STORES.md](docs/STORES.md).

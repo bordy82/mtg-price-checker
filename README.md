@@ -45,6 +45,8 @@ npm start
 
 Then open http://localhost:3000. Set `PORT` to use another port.
 
+From a phone or another computer on the same Wi-Fi, open `http://<this computer's IP>:3000` (e.g. `http://192.168.1.20:3000`): the server listens on every network interface. Copying a card name still works there. Note that anyone on that network can then open the page and change your lists; there's no login.
+
 Your lists are stored locally in `data/list.json` (selling) and `data/wishlist.json` (buying). They are git-ignored. Set `DATA_DIR` to keep them in another folder.
 
 To try changes without touching your lists, run `npm run start:test`. It copies both lists into `data-test/` (fresh each run) and serves the copies at http://localhost:3999.
@@ -68,7 +70,7 @@ lib/
   normalize.js         names, finishes, versions, set names, matching keys
   storepass.js         shared fetching for Storepass-hosted buylists
 public/              the web page (vanilla HTML/CSS/JS)
-docs/                architecture and per-store reference
+docs/                architecture, per-store reference, product decisions
 ```
 
 Each store adapter exports:

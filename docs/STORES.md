@@ -1,6 +1,6 @@
 # Store reference
 
-How each store's data is read, last verified 2026-10-02. All four stores serve CAD prices. None of these
+How each store's data is read, last verified 2026-10-02 (Collect-Edition's buy prices and listing minimum: 2026-10-07). All four stores serve CAD prices. None of these
 endpoints is documented by the stores, so re-check them here first when a store's column goes blank.
 
 The first question for any store: **does its site display cash or credit?** It differs by store.
@@ -47,7 +47,8 @@ Gotchas:
 
 Gotchas:
 - The "Buy Price" on their site **is the credit value**. Cash is credit ÷ 1.5.
-- Their store settings (`/retailer/store-info`) set buy prices as a tiered percentage of retail (≈44% cash for cards $10 and up). Cards under $2 retail get no offer.
+- Their store settings (`/retailer/store-info`, the Magic product line's `priceGenerationRules`) set buy prices by retail tier. Cash is about 44% of retail at $10 and up, 37% from $5, 22% from $2 and 4% from $1 (e.g. $0.06 cash, $0.09 credit for a $1.50 card), with no offer under $1. Credit = cash × 1.5 (`credit_percent`).
+- Their buylist page only **lists** offers over $2 cash (over $3 credit; `gt_price: 2`), and checkout needs at least $3. `lib/storepass.js` sends `override_buylist_gt_price=true`, so this app also shows the smaller offers, which their page doesn't list (checked on the page 2026-10-07: Llanowar Elves SLD #1553, $1.85 cash / $2.78 credit, isn't there; the lowest listed is $2.04 / $3.06). 401 Games has no such minimum (`gt_price: 0`).
 - Only NM is public on the buylist; other conditions are staff-only.
 - Serialized cards keep the plain number and add a tag (`(Serial Numbered) (LTR-748)`), unlike F2F's `748z`. The matcher treats both as serialized.
 

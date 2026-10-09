@@ -2,7 +2,7 @@
 
 A small local web app with no build step: an Express 5 server, one adapter per store, and a vanilla JS page.
 The server fetches each store's public search data on demand, normalizes it, and merges it into one row per
-card printing.
+card printing. What the user decided against (and why) is in [DECISIONS.md](DECISIONS.md).
 
 ```mermaid
 flowchart LR
@@ -157,5 +157,5 @@ matches if the row's primary key changes, for example when a store stops listing
 - Near Mint, English only. One row per printing. Only "Selling to <store>" lists have a quantity (`qty`).
 - Refresh takes about 3 s per distinct card name, 3 names at a time: about 80 s for 55 names (about 3 minutes one at a time). Keep it at 3: Game Keeper is flaky and every name hits every store.
 - Game Keeper has no collector numbers, so a few ambiguous printings stay unmerged. Its server is also flaky; its requests make 4 attempts with backoff.
-- Prerelease and promo printings are coded differently by each store and sometimes don't merge (e.g. F2F `PFIN 253s` vs CE `PRE 253`). Game Keeper files some promos under catch-all sets ("Miscellaneous Promos"), so those can't be matched.
+- Prerelease and promo printings are coded differently by each store and sometimes don't merge (#50): the set code is `P<SET>`, `PRE` or `PRE<SET>`, with or without an `s` after the number. Face to Face has `PFIN 253s`; Collect-Edition `PRE 253` and `PRE 200s`; 401 Games `PRE 253` and `PRERNA 200`. Game Keeper files some promos under catch-all sets ("Miscellaneous Promos"), so those can't be matched.
 - Everything relies on undocumented store endpoints and page markup, which can change without notice. See [STORES.md](STORES.md) for how to re-check each one.
