@@ -6,7 +6,8 @@ const state = {
   filters: { finish: 'all', treatments: new Set() },
   lists: { sell: [], buy: [] },
   excluded: { sell: new Set(), buy: new Set() }, // stores left out of the comparison, per view
-  moveTo: { sell: null, buy: null }, // sub-list picked in "Move starred cards to", per view ('' = new wishlist list)
+  moveTo: { sell: null, buy: null }, // sub-list picked in "Move starred cards to", per view ('' = new wishlist list,
+  // 'new:<store id>' = a new "Selling to" list)
   refreshing: new Map(), // price refreshes running: `${view}:${sub-list id}` ('' = the whole list) -> { done, total }
   search: { seq: 0, abort: null }, // the latest search (#37): only its response may render
   removed: null, // the last removed card, for Undo (#43): { view, item, index, timer }
@@ -24,6 +25,11 @@ const NORMAL = 'Normal';
 const VIEW_KEY = 'mtg-buylist:view';
 const EXCLUDED_KEY = 'mtg-buylist:excluded';
 
+// "Selling to <store>" lists (#72): a store can have several, numbered by `sellList` (missing = 1).
+// A list's id is `<store id>:<number>`.
+const sellListNo = (item) => Math.max(1, Math.floor(item.sellList) || 1);
+const sellListId = (storeId, n) => `${storeId}:${n}`;
+
 // Everything that differs between selling and buying. Prices are { cash, credit } or { price, stock }.
 const MODES = {
   sell: {
@@ -39,14 +45,48 @@ const MODES = {
     missingLabel: (n) => `${n} not bought`,
     starTitle: 'Star: actually selling this',
     storeListTitle: (store) => `Selling to ${store}`,
-    // Sub-lists (#17): one "Selling to <store>" list per store, by `sellTo`. An unknown store id counts as the main list.
-    // Each refreshes on its own (#69).
-    groupOf: (item) => (state.stores.some((s) => s.id === item.sellTo) ? item.sellTo : null),
-    setGroup: (item, id) => { item.sellTo = id; },
-    groups: () => state.stores.map((s) => ({ id: s.id, label: s.label, title: MODES.sell.storeListTitle(s.label), chosen: s.id, qty: true, refresh: true, print: true, clear: true })),
-    print: (storeId) => printStoreList(storeId),
+    // Sub-lists (#17): "Selling to <store>" lists, by `sellTo` and `sellList` (#72). An unknown store id counts as
+    // the main list. Each refreshes on its own (#69).
+    groupOf: (item) => (state.stores.some((s) => s.id === item.sellTo) ? sellListId(item.sellTo, sellListNo(item)) : null),
+    setGroup: (item, id) => {
+      const [storeId, n] = id.split(':');
+      item.sellTo = storeId;
+      if (Number(n) > 1) item.sellList = Number(n);
+      else delete item.sellList;
+    },
+    // The lists that have cards, by store, oldest first. Titles count only the store's current lists, so when the
+    // first one is cleared the next one becomes plain "Selling to <store>".
+    groups: () => state.stores.flatMap((s) => {
+      const numbers = [...new Set(state.lists.sell.filter((item) => item.sellTo === s.id).map(sellListNo))].sort((a, b) => a - b);
+      return numbers.map((n, i) => ({
+        id: sellListId(s.id, n),
+        title: `${MODES.sell.storeListTitle(s.label)}${i ? ` (${i + 1})` : ''}`,
+        chosen: s.id, qty: true, refresh: true, print: true, clear: true,
+      }));
+    }),
+    // Move bar: each store's lists, then "New list" for that store.
+    moveOptions: () => {
+      const groups = MODES.sell.groups();
+      return state.stores.map((s) => ({
+        label: s.label,
+        options: [
+          ...groups.filter((g) => g.chosen === s.id).map((g) => {
+            const n = state.lists.sell.filter((item) => MODES.sell.groupOf(item) === g.id).length;
+            return { value: g.id, label: `${g.title} · ${n} card${n === 1 ? '' : 's'}` };
+          }),
+          { value: `new:${s.id}`, label: 'New list' },
+        ],
+      }));
+    },
+    // "New list" (`new:<store id>`) is the store's next number.
+    newListId: (value) => {
+      const storeId = value.startsWith('new:') && value.slice(4);
+      if (!state.stores.some((s) => s.id === storeId)) return null;
+      const numbers = state.lists.sell.filter((item) => item.sellTo === storeId).map(sellListNo);
+      return sellListId(storeId, Math.max(0, ...numbers) + 1);
+    },
+    print: (listId) => printStoreList(listId),
     printMain: false,
-    moveTarget: 'Store',
     newGroup: false,
   },
   buy: {
@@ -66,11 +106,18 @@ const MODES = {
     groupOf: (item) => (typeof item.group === 'string' && item.group.trim() ? item.group : null),
     setGroup: (item, name) => { item.group = name; },
     groups: () => [...new Set(state.lists.buy.map((item) => MODES.buy.groupOf(item)).filter(Boolean))].sort(byText)
-      .map((name) => ({ id: name, label: name, title: name, refresh: true, print: true })),
+      .map((name) => ({ id: name, title: name, refresh: true, print: true })),
+    moveOptions: () => [{ options: [...MODES.buy.groups().map((g) => ({ value: g.id, label: g.title })), { value: '', label: 'New list…' }] }],
+    // "New list…" (value '') takes the name typed next to it. A name matching an existing list (trimmed, any case)
+    // adds to that list instead of making a near-duplicate.
+    newListId: (value) => {
+      const name = $('#move-name').value.trim();
+      if (value !== '' || !name) return null;
+      return MODES.buy.groups().find((g) => byText(g.id, name) === 0)?.id ?? name;
+    },
     // Each wishlist list prints on its own (#55), and so does the main wishlist (`null`: cards not in a list).
     print: (name) => printWishlist(name),
     printMain: true,
-    moveTarget: 'List',
     newGroup: true,
   },
 };
@@ -489,22 +536,26 @@ function qtyStepper(item) {
   </span>`;
 }
 
-// "Move starred cards to [sub-list]": shown when the main list has starred cards.
-// Selling offers the stores; Buying offers the wishlist lists, then "New list…" (value '') with a name field.
+// "Move starred cards to [sub-list]": shown when the main list has starred cards. Options come from `moveOptions()`,
+// in labelled groups or not: Selling offers each store's lists, then "New list" for that store (#72); Buying offers
+// the wishlist lists, then "New list…" (value '') with a name field.
 function renderMoveBar(main) {
   const c = cfg();
   const bar = $('#move-bar');
   const count = main.filter((item) => item.starred).length;
   bar.hidden = !count;
   if (bar.hidden) return;
-  const options = c.groups().map((g) => ({ value: g.id, label: g.label }));
-  if (c.newGroup) options.push({ value: '', label: 'New list…' });
-  const picked = state.moveTo[state.view];
-  if (!options.some((o) => o.value === picked)) state.moveTo[state.view] = options[0]?.value ?? '';
+  const groups = c.moveOptions();
+  const values = groups.flatMap((g) => g.options.map((o) => o.value));
+  if (!values.includes(state.moveTo[state.view])) state.moveTo[state.view] = values[0] ?? '';
+  const option = (o) =>
+    `<option value="${esc(o.value)}"${o.value === state.moveTo[state.view] ? ' selected' : ''}>${esc(o.label)}</option>`;
   $('#move-label').textContent = `Move ${count} starred card${count === 1 ? '' : 's'} to`;
-  $('#move-to').setAttribute('aria-label', c.moveTarget);
-  $('#move-to').innerHTML = options
-    .map((o) => `<option value="${esc(o.value)}"${o.value === state.moveTo[state.view] ? ' selected' : ''}>${esc(o.label)}</option>`)
+  $('#move-to').innerHTML = groups
+    .map((g) => {
+      const options = g.options.map(option).join('');
+      return g.label ? `<optgroup label="${esc(g.label)}">${options}</optgroup>` : options;
+    })
     .join('');
   renderMoveName();
 }
@@ -516,7 +567,7 @@ function renderMoveName() {
   $('#move-btn').disabled = naming && !$('#move-name').value.trim();
 }
 
-// One section per sub-list that has cards: "Selling to <store>" in store order, or wishlist lists by name.
+// One section per sub-list that has cards: "Selling to <store>" lists by store (oldest first), or wishlist lists by name.
 function renderSubLists(list) {
   $('#sub-lists').innerHTML = cfg().groups().map((g) => {
     const items = list.filter((item) => groupOf(item) === g.id);
@@ -647,16 +698,17 @@ function printWishlist(name) {
 }
 
 // A "Selling to <store>" list: that store's credit and cash only, whatever the switch says.
-function printStoreList(storeId) {
-  const store = state.stores.find((s) => s.id === storeId);
-  const items = currentList().filter((item) => groupOf(item) === storeId).sort(compareListItems);
+function printStoreList(listId) {
+  const group = MODES.sell.groups().find((g) => g.id === listId);
+  const store = state.stores.find((s) => s.id === group?.chosen);
+  const items = currentList().filter((item) => groupOf(item) === listId).sort(compareListItems);
   if (!store || !items.length) return;
 
   let credit = 0;
   let cash = 0;
   let notBought = 0;
   const rows = items.map((item) => {
-    const p = item.prices?.[storeId];
+    const p = item.prices?.[store.id];
     const n = qtyOf(item);
     const buys = p?.credit > 0 || p?.cash > 0;
     if (buys) { credit += (p.credit || 0) * n; cash += (p.cash || 0) * n; } else notBought += n;
@@ -670,7 +722,7 @@ function printStoreList(storeId) {
     </tr>`;
   }).join('');
 
-  printSheet(cfg().storeListTitle(store.label), items, `
+  printSheet(group.title, items, `
     <table>
       <thead><tr><th>Card</th><th class="num">Qty</th><th class="num">Credit</th><th class="num">Cash</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -1026,6 +1078,7 @@ $('#list-panel').addEventListener('click', (e) => {
       // Unstarring a card in a sub-list also sends it back to the main list, with no quantity.
       delete item.starred;
       delete item.sellTo;
+      delete item.sellList;
       delete item.group;
       delete item.qty;
     } else item.starred = true;
@@ -1055,7 +1108,7 @@ $('#list-panel').addEventListener('click', (e) => {
 
 // ---- undo a removal (#43) ----
 // One level: the last removed card, for 8 s or until the next removal or a tab switch. Undo puts back the same
-// object, so its star, sub-list (sellTo / group), quantity and prices come back with it.
+// object, so its star, sub-list (sellTo / sellList / group), quantity and prices come back with it.
 
 const UNDO_MS = 8000;
 
@@ -1109,20 +1162,20 @@ function confirmDialog({ title, text, confirm }) {
 // ---- clear a "Selling to <store>" list (#63) ----
 // Once the list has been entered on the store's own buylist, its cards are sold: they leave the sell list for good.
 // (Unstarring would send them back to the main list instead.) No undo; the confirmation is the safeguard.
-async function clearStoreList(storeId) {
-  const store = state.stores.find((s) => s.id === storeId);
-  const items = state.lists.sell.filter((item) => groupOf(item) === storeId);
-  if (state.view !== 'sell' || !store || !items.length) return;
+async function clearStoreList(listId) {
+  const group = MODES.sell.groups().find((g) => g.id === listId);
+  const items = state.lists.sell.filter((item) => groupOf(item) === listId);
+  if (state.view !== 'sell' || !group || !items.length) return;
   const cards = `${items.length} card${items.length === 1 ? '' : 's'}`;
   const copies = items.reduce((n, item) => n + qtyOf(item), 0);
   const ok = await confirmDialog({
-    title: `Clear "${MODES.sell.storeListTitle(store.label)}"?`,
+    title: `Clear "${group.title}"?`,
     text: `This removes its ${cards}${copies === items.length ? '' : ` (${copies} copies)`} from your sell list. ` +
       `They won't go back to "${MODES.sell.listTitle}".`,
     confirm: `Clear ${cards}`,
   });
   if (!ok) return;
-  state.lists.sell = state.lists.sell.filter((item) => groupOf(item) !== storeId);
+  state.lists.sell = state.lists.sell.filter((item) => groupOf(item) !== listId);
   saveList('sell');
   renderList();
   if (state.results.length) renderResults();
@@ -1166,16 +1219,13 @@ $('#move-to').addEventListener('change', (e) => {
 $('#move-name').addEventListener('input', renderMoveName);
 $('#move-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#move-btn').click(); });
 
-// Move the main list's starred cards into the picked sub-list. A new wishlist list whose name matches
-// an existing one (trimmed, any case) adds to that list instead of making a near-duplicate.
+// Move the main list's starred cards into the picked sub-list, or into a new one (`newListId`). The picker then
+// stays on that list, so moving more cards doesn't start yet another one.
 $('#move-btn').addEventListener('click', () => {
   const c = cfg();
-  let target = $('#move-to').value;
-  if (c.newGroup && target === '') {
-    const name = $('#move-name').value.trim();
-    if (!name) return;
-    target = c.groups().find((g) => byText(g.id, name) === 0)?.id ?? name;
-  } else if (!c.groups().some((g) => g.id === target)) return;
+  const picked = $('#move-to').value;
+  const target = c.groups().some((g) => g.id === picked) ? picked : c.newListId(picked);
+  if (!target) return;
   for (const item of currentList()) {
     if (item.starred && !groupOf(item)) c.setGroup(item, target);
   }

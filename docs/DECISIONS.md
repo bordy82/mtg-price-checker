@@ -9,6 +9,7 @@ these, the user decides on a new card; update the line then.
 - **No "Best" column, and no "each card at its best store" total** (nor its "saves $x vs one store" note). The green cell already shows the best store (#7).
 - **Quantities only in "Selling to \<store\>" lists.** The main sell list and the wishlist have none: too cramped there (#24). Even in store lists there's no Qty column, just a faint **+** that becomes **− 2× +** (#29).
 - **Wishlist lists have no quantity** (#27).
+- **Several "Selling to \<store\>" lists per store are numbered** ("Selling to Face to Face (2)"), not dated or named, and a list has no "waiting" or "sent" tag: the user picks **New list** when moving cards (#72).
 - **Wishlist sheets print every store** still in the comparison (price, stock, the cheapest in-stock one starred), not one store's prices like a "Selling to" sheet (#55).
 
 ## Page
