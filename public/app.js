@@ -40,9 +40,10 @@ const MODES = {
     starTitle: 'Star: actually selling this',
     storeListTitle: (store) => `Selling to ${store}`,
     // Sub-lists (#17): one "Selling to <store>" list per store, by `sellTo`. An unknown store id counts as the main list.
+    // Each refreshes on its own (#69).
     groupOf: (item) => (state.stores.some((s) => s.id === item.sellTo) ? item.sellTo : null),
     setGroup: (item, id) => { item.sellTo = id; },
-    groups: () => state.stores.map((s) => ({ id: s.id, label: s.label, title: MODES.sell.storeListTitle(s.label), chosen: s.id, qty: true, print: true, clear: true })),
+    groups: () => state.stores.map((s) => ({ id: s.id, label: s.label, title: MODES.sell.storeListTitle(s.label), chosen: s.id, qty: true, refresh: true, print: true, clear: true })),
     print: (storeId) => printStoreList(storeId),
     printMain: false,
     moveTarget: 'Store',
@@ -505,7 +506,7 @@ function renderSubLists(list) {
     if (!items.length) return '';
     const { thead, tbody, tfoot } = listTable(items, { chosen: g.chosen, qty: g.qty });
     const refreshing = state.refreshing.get(`${state.view}:${g.id}`);
-    // Wishlist lists (#33) refresh on their own and show their own prices' age.
+    // Wishlist lists (#33) and "Selling to" lists (#69) refresh on their own and show their own prices' age.
     const refresh = g.refresh
       ? `<span class="muted" data-age="${esc(g.id)}">${esc(pricesInfo(items))}</span>
         <button class="ghost small" data-refresh="${esc(g.id)}"${refreshing ? ' disabled' : ''}>${refreshing ? refreshingText(refreshing) : 'Refresh'}</button>`
@@ -665,7 +666,7 @@ function printStoreList(storeId) {
 
 window.addEventListener('afterprint', () => { $('#print-sheet').innerHTML = ''; });
 
-// Refresh the whole list, or one sub-list's cards (`groupId`, a wishlist list, #33).
+// Refresh the whole list, or one sub-list's cards (`groupId`: a wishlist list, #33, or a "Selling to" list, #69).
 // One request per card name, at most REFRESH_PARALLEL at a time, with "Refreshing N / M…" on the button (#44).
 // Searching every name in one request, one after another, took ~3 s per name: about 3 minutes for 55 names.
 const REFRESH_PARALLEL = 3;
