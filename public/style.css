@@ -202,7 +202,9 @@ a.price-link:hover .main { text-decoration: underline; text-underline-offset: 3p
 /* Sub-lists under the main list: "Selling to <store>" sections and wishlist lists. */
 .sub-list { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
 .sub-list h3 { font-size: 15px; margin: 0; }
-.sub-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sub-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+/* Prices' age, Refresh, Print, Clear list: they wrap under the title, then onto a second line, on narrow screens. */
+.sub-list-head .panel-actions { flex-wrap: wrap; gap: 8px 12px; }
 /* Clear list (#63): quiet until hovered; the confirmation's Clear button is red. */
 button.ghost.danger-hover:hover { color: var(--danger); border-color: var(--danger); }
 button.danger { background: var(--danger); color: #fff; }
