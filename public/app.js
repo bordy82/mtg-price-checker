@@ -237,6 +237,7 @@ async function search(q) {
   $('#results').hidden = true;
   $('#filters').hidden = true;
   const { signal, isLatest } = startSearch();
+  renderSearchClear();
   try {
     const data = await api(`/api/search?mode=${state.view}&q=${encodeURIComponent(q)}`, { signal });
     if (!isLatest()) return; // a newer search (or a tab switch) replaced this one
@@ -256,6 +257,7 @@ async function search(q) {
     status.className = 'status error';
     status.textContent = err.message;
   }
+  renderSearchClear();
 }
 
 function clearResults() {
@@ -264,6 +266,21 @@ function clearResults() {
   $('#results').hidden = true;
   $('#filters').hidden = true;
   $('#search-status').textContent = '';
+  renderSearchClear();
+}
+
+// Clear search (#71): the ✕ in the field, or Esc with no suggestions open, puts the search area back the way it is
+// when the page opens, without a reload (which would also stop a price refresh). The lists are left as they are.
+// The ✕ shows while there's anything to clear: text in the field, or a search, its results or its message.
+function renderSearchClear() {
+  $('#search-clear').hidden = !$('#search-input').value && !$('#search-status').textContent;
+}
+
+function resetSearch() {
+  closeSuggestions();
+  $('#search-input').value = '';
+  clearResults();
+  $('#search-input').focus();
 }
 
 function renderFilters() {
@@ -859,6 +876,7 @@ $('#search-form').addEventListener('submit', (e) => {
   closeSuggestions();
   search($('#search-input').value.trim());
 });
+$('#search-clear').addEventListener('click', resetSearch);
 
 // Clicking or tabbing into the search field selects its text, so typing replaces the last search.
 // The mouseup after a focusing click would clear the selection, so that one mouseup is cancelled;
@@ -934,6 +952,7 @@ function pickSuggestion(index) {
 {
   const input = $('#search-input');
   input.addEventListener('input', () => {
+    renderSearchClear();
     clearTimeout(suggest.timer);
     const text = input.value.trim();
     if (text.length < 2) { closeSuggestions(); return; }
@@ -941,7 +960,13 @@ function pickSuggestion(index) {
   });
   input.addEventListener('keydown', (e) => {
     const n = suggest.names.length;
-    if (!n || e.isComposing) return;
+    if (e.isComposing) return;
+    if (e.key === 'Escape' && !n) {
+      e.preventDefault(); // a search field would only empty the text
+      resetSearch();
+      return;
+    }
+    if (!n) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault(); // the cursor stays where it is
       // Positions 0…n, where 0 is what was typed: past either end wraps through it.

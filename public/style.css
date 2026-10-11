@@ -56,9 +56,12 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 28px 60px; display: grid
 
 .search { display: flex; gap: 8px; }
 .search input {
-  flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
+  flex: 1; padding: 10px 36px 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
 }
 .search input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+/* Clear search (#71): our ✕ over the field's right end. The browser's own ✕ only empties the text, so it's hidden. */
+.search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.search-clear { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 14px; line-height: 1; }
 /* Card name suggestions (#52): a list under the search field, over the page. */
 .search-box { position: relative; flex: 1; display: flex; }
 .suggestions {

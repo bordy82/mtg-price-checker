@@ -18,6 +18,7 @@ Supported stores:
 
 - Search a card by name and see every printing side by side across all stores. Printings are matched by set, collector number and finish.
 - Card name suggestions while you type (from [Scryfall](https://scryfall.com)), so a typo or a missing comma or apostrophe doesn't come up empty: pick one with ↑ / ↓ and Enter, or click it. Enter without picking searches what you typed. Without a connection to Scryfall, search works as usual, just without suggestions.
+- **✕** in the search field (or Esc) clears the search: the text, the results and the filters, as when the page opens. No reload needed, so a price refresh in progress keeps going.
 - Filter results by finish (non-foil, foil, etched) and version (normal, borderless, showcase, extended art…).
 - Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click (or just one wishlist list, with its own **Refresh**). The button shows its progress (`Refreshing 12 / 55…`).
 - After a refresh, each list price that moved shows how much under it (`▲ $1.30`), green when it's better for you (a higher offer when selling, a lower price when buying) and red when worse; hover it for the old price and date. A wishlist card that came back in stock says so. "Prices from …" also says how many prices changed.
