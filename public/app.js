@@ -44,7 +44,8 @@ const MODES = {
     totalLabel: () => `Total ${state.sellValue} if everything goes to…`,
     missingLabel: (n) => `${n} not bought`,
     starTitle: 'Star: actually selling this',
-    storeListTitle: (store) => `Selling to ${store}`,
+    // A store's first list is "Selling to <store>", its next ones "(2)", "(3)"… (`i` = position among its lists, #72).
+    storeListTitle: (store, i = 0) => `Selling to ${store}${i ? ` (${i + 1})` : ''}`,
     // Sub-lists (#17): "Selling to <store>" lists, by `sellTo` and `sellList` (#72). An unknown store id counts as
     // the main list. Each refreshes on its own (#69).
     groupOf: (item) => (state.stores.some((s) => s.id === item.sellTo) ? sellListId(item.sellTo, sellListNo(item)) : null),
@@ -60,25 +61,30 @@ const MODES = {
       const numbers = [...new Set(state.lists.sell.filter((item) => item.sellTo === s.id).map(sellListNo))].sort((a, b) => a - b);
       return numbers.map((n, i) => ({
         id: sellListId(s.id, n),
-        title: `${MODES.sell.storeListTitle(s.label)}${i ? ` (${i + 1})` : ''}`,
+        title: MODES.sell.storeListTitle(s.label, i),
         chosen: s.id, qty: true, refresh: true, print: true, clear: true,
       }));
     }),
-    // Move bar: each store's lists, then "New list" for that store.
+    // Move bar: each store's lists, then a new one, named as the section it will make
+    // ("Selling to Face to Face (2) · new list"). A closed select shows only the picked option, not its group, so
+    // every option names its store.
     moveOptions: () => {
       const groups = MODES.sell.groups();
-      return state.stores.map((s) => ({
-        label: s.label,
-        options: [
-          ...groups.filter((g) => g.chosen === s.id).map((g) => {
-            const n = state.lists.sell.filter((item) => MODES.sell.groupOf(item) === g.id).length;
-            return { value: g.id, label: `${g.title} · ${n} card${n === 1 ? '' : 's'}` };
-          }),
-          { value: `new:${s.id}`, label: 'New list' },
-        ],
-      }));
+      return state.stores.map((s) => {
+        const lists = groups.filter((g) => g.chosen === s.id);
+        return {
+          label: s.label,
+          options: [
+            ...lists.map((g) => {
+              const n = state.lists.sell.filter((item) => MODES.sell.groupOf(item) === g.id).length;
+              return { value: g.id, label: `${g.title} · ${n} card${n === 1 ? '' : 's'}` };
+            }),
+            { value: `new:${s.id}`, label: `${MODES.sell.storeListTitle(s.label, lists.length)} · new list` },
+          ],
+        };
+      });
     },
-    // "New list" (`new:<store id>`) is the store's next number.
+    // A new list (`new:<store id>`) is the store's next number.
     newListId: (value) => {
       const storeId = value.startsWith('new:') && value.slice(4);
       if (!state.stores.some((s) => s.id === storeId)) return null;
