@@ -35,6 +35,7 @@ const MODES = {
   sell: {
     subtitle: 'best offer per card',
     listTitle: 'My cards to sell',
+    listName: 'sell list', // in "removes its 3 cards from your sell list" (#63)
     emptyText: 'Search for a card above and click <b>Add</b> on the version you own.',
     value: (p) => p?.[state.sellValue],
     eligible: (p) => p?.[state.sellValue] > 0,
@@ -98,6 +99,7 @@ const MODES = {
   buy: {
     subtitle: 'cheapest price per card',
     listTitle: 'My wishlist',
+    listName: 'wishlist',
     emptyText: 'Search for a card above and click <b>Add</b> on the version you want.',
     value: (p) => p?.price,
     eligible: (p) => p?.price > 0 && p.stock > 0,
@@ -112,7 +114,7 @@ const MODES = {
     groupOf: (item) => (typeof item.group === 'string' && item.group.trim() ? item.group : null),
     setGroup: (item, name) => { item.group = name; },
     groups: () => [...new Set(state.lists.buy.map((item) => MODES.buy.groupOf(item)).filter(Boolean))].sort(byText)
-      .map((name) => ({ id: name, title: name, refresh: true, print: true })),
+      .map((name) => ({ id: name, title: name, refresh: true, print: true, clear: true })),
     moveOptions: () => [{ options: [...MODES.buy.groups().map((g) => ({ value: g.id, label: g.title })), { value: '', label: 'New list…' }] }],
     // "New list…" (value '') takes the name typed next to it. A name matching an existing list (trimmed, any case)
     // adds to that list instead of making a near-duplicate.
@@ -1165,24 +1167,27 @@ function confirmDialog({ title, text, confirm }) {
   return new Promise((resolve) => dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'), { once: true }));
 }
 
-// ---- clear a "Selling to <store>" list (#63) ----
-// Once the list has been entered on the store's own buylist, its cards are sold: they leave the sell list for good.
-// (Unstarring would send them back to the main list instead.) No undo; the confirmation is the safeguard.
-async function clearStoreList(listId) {
-  const group = MODES.sell.groups().find((g) => g.id === listId);
-  const items = state.lists.sell.filter((item) => groupOf(item) === listId);
-  if (state.view !== 'sell' || !group || !items.length) return;
+// ---- clear a sub-list: a "Selling to <store>" list (#63) or a wishlist list (#77) ----
+// Once the list has been entered on the store's own buylist, its cards are sold; once a wishlist list is bought,
+// they're owned. Either way the cards leave the list for good. (Unstarring would send them back to the main list
+// instead.) No undo; the confirmation is the safeguard.
+async function clearSubList(listId) {
+  const view = state.view;
+  const c = MODES[view];
+  const group = c.groups().find((g) => g.id === listId);
+  const items = state.lists[view].filter((item) => c.groupOf(item) === listId);
+  if (!group?.clear || !items.length) return;
   const cards = `${items.length} card${items.length === 1 ? '' : 's'}`;
   const copies = items.reduce((n, item) => n + qtyOf(item), 0);
   const ok = await confirmDialog({
     title: `Clear "${group.title}"?`,
-    text: `This removes its ${cards}${copies === items.length ? '' : ` (${copies} copies)`} from your sell list. ` +
-      `They won't go back to "${MODES.sell.listTitle}".`,
+    text: `This removes its ${cards}${copies === items.length ? '' : ` (${copies} copies)`} from your ${c.listName}. ` +
+      `They won't go back to "${c.listTitle}".`,
     confirm: `Clear ${cards}`,
   });
   if (!ok) return;
-  state.lists.sell = state.lists.sell.filter((item) => groupOf(item) !== listId);
-  saveList('sell');
+  state.lists[view] = state.lists[view].filter((item) => c.groupOf(item) !== listId);
+  saveList(view);
   renderList();
   if (state.results.length) renderResults();
 }
@@ -1214,7 +1219,7 @@ $('#sub-lists').addEventListener('click', (e) => {
   const r = e.target.closest('[data-refresh]');
   if (r) refreshPrices(r.dataset.refresh);
   const c = e.target.closest('[data-clear]');
-  if (c) clearStoreList(c.dataset.clear);
+  if (c) clearSubList(c.dataset.clear);
 });
 
 $('#move-to').addEventListener('change', (e) => {
