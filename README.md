@@ -33,6 +33,7 @@ Supported stores:
   - selling: the highest offer
   - buying: the cheapest copy **in stock** (sold-out prices are shown greyed and never win)
 - Store columns are headed by the store's logo (hover it for the name). Click a store's logo to leave it out of the comparison (e.g. online-only stores when selling in person): its column turns grey and the best price moves to the next store. Click again to bring it back. Selling and Buying each remember their own choice.
+- The stores you can visit come first, and the online ones (401 Games, Hobbiesville) are on the right. Drag a store's logo left or right to move its column: the order is remembered, the same in Selling and Buying, and "Selling to <store>" lists, the move menu and print sheets follow it. **↺** (top right of each table) puts the columns back in the default order.
 - Totals for "everything at one store", with how many cards each store doesn't buy or doesn't have in stock.
 - Near Mint, English cards only.
 
@@ -90,7 +91,7 @@ Each store adapter exports:
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/stores` | Store list |
+| GET | `/api/stores` | Store list, in the default column order (in-person stores, then online ones) |
 | GET | `/api/search?q=<name>&mode=sell\|buy` | Merged printings for a card |
 | GET | `/api/suggest?q=<text>` | Up to 20 card names starting like `text`, from Scryfall: `{ names }` (empty if Scryfall can't be reached) |
 | GET / PUT | `/api/list?mode=sell\|buy` | Read / replace the saved list |
@@ -100,7 +101,7 @@ Each store adapter exports:
 
 1. Find the store's search data, ideally a JSON request in the browser's network tab, otherwise the HTML.
 2. Check what the site displays: some show **cash**, others show **credit** directly.
-3. Create `stores/<store>.js` exporting `{ id, label, logo, creditNote, links, search, searchRetail }`, returning the offer shapes above (each with a `url` to the card at the store).
+3. Create `stores/<store>.js` exporting `{ id, label, logo, online, creditNote, links, search, searchRetail }` (`online: true` for a mail-order store), returning the offer shapes above (each with a `url` to the card at the store).
 4. Add it to `stores/index.js`. The UI adds a column automatically.
 
 The full checklist is in [docs/STORES.md](docs/STORES.md#adding-a-store).

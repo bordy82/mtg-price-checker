@@ -137,6 +137,13 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
 .store-tip b { font-weight: 600; }
 .store-tip span { opacity: .75; }
 .store-toggle:hover .store-tip, .store-toggle:focus-visible .store-tip { opacity: 1; visibility: visible; transition-delay: .15s; }
+/* Dragging a store header moves its column (#83): the header fades, and a bar shows where the column will land. */
+#col-marker { position: fixed; z-index: 4; width: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; }
+body.col-drag, body.col-drag * { cursor: grabbing !important; user-select: none; }
+body.col-drag .store-tip { display: none; }
+.grid th.col-dragged { opacity: .45; }
+/* ↺ over the row actions, once the store columns have been moved: back to the default order. */
+.grid th.col-tools { text-align: right; padding-top: 0; padding-bottom: 0; }
 .grid td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .grid tbody tr:hover { background: color-mix(in srgb, var(--chip) 50%, transparent); }
 .grid th.num, .grid td.num { text-align: right; white-space: nowrap; }

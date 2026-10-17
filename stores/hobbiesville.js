@@ -75,6 +75,7 @@ module.exports = {
   id: 'hv',
   label: 'Hobbiesville',
   logo: 'logos/hv.png',
+  online: true, // mail order (Ottawa, Toronto): its column goes on the right by default (#83)
   creditNote: 'site price = credit',
   links: LINKS,
   search,

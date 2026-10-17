@@ -47,8 +47,12 @@ async function searchAll(fullQuery, { mode = 'sell', force = false } = {}) {
   return entry;
 }
 
+// In the default column order (#83): in-person stores, then online ones, each in registry order. The page can
+// save its own order.
 app.get('/api/stores', (req, res) => {
-  res.json(stores.map(({ id, label, logo, logoDark, creditNote, links }) => ({ id, label, logo, logoDark, creditNote, links })));
+  const ordered = [...stores.filter((s) => !s.online), ...stores.filter((s) => s.online)];
+  res.json(ordered.map(({ id, label, logo, logoDark, online = false, creditNote, links }) =>
+    ({ id, label, logo, logoDark, online, creditNote, links })));
 });
 
 app.get('/api/search', async (req, res) => {

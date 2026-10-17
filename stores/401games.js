@@ -97,6 +97,7 @@ module.exports = {
   id: '401',
   label: '401 Games',
   logo: 'logos/401.png',
+  online: true, // mail order (Toronto): its column goes on the right by default (#83)
   creditNote: 'cash + 30%',
   links: LINKS,
   search,
