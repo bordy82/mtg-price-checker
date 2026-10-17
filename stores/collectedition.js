@@ -4,8 +4,8 @@
 // Retail: the same response carries the Shopify store's variants (price + inventory per condition),
 // which match cards.collect-edition.com.
 
-const { round2, normCollector, normFinish, normTreatment, searchLink } = require('../lib/normalize');
-const { fetchProducts } = require('../lib/storepass');
+const { round2, normFinish, searchLink } = require('../lib/normalize');
+const { fetchProducts, parseDisplayName, readTags } = require('../lib/storepass');
 
 const HOST = 'buylist.collect-edition.com';
 const STORE_ID = 'dFODoSzI0G';
@@ -18,32 +18,16 @@ const LINKS = {
 };
 
 // "Sol Ring - Elven (0408) (Serial Numbered) (LTC-408Z) - Tales of Middle-earth Commander Foil"
-//  -> name "Sol Ring - Elven", tags ["0408", "Serial Numbered", "LTC-408Z"]
-function parseDisplayName(display) {
+//  -> name "Sol Ring - Elven", tags ["0408", "Serial Numbered", "LTC-408Z"]: the tags before the last " - ".
+function parseCeName(display) {
   const str = String(display);
-  const left = str.includes(' - ') ? str.slice(0, str.lastIndexOf(' - ')) : str;
-  const name = left.split(' (')[0].trim();
-  const tags = [...left.matchAll(/\(([^)]+)\)/g)].map((m) => m[1].trim());
-  return { name, tags };
+  return parseDisplayName(str.includes(' - ') ? str.slice(0, str.lastIndexOf(' - ')) : str);
 }
 
 function toOffer(p, mode) {
-  const { name, tags } = parseDisplayName(p.display_name);
+  const { name, tags } = parseCeName(p.display_name);
   const data = p.product_data || {};
-
-  // "(FIN-350)", "(LTC-408Z)", "(LIST-CMD-261)", or "(LEB-)" when the number is unknown.
-  const setTag = [...tags].reverse().find((t) => /^[A-Z0-9]+-[A-Za-z0-9★-]*$/.test(t));
-  const tagNumber = setTag ? setTag.slice(setTag.indexOf('-') + 1) : '';
-  const collectorNumber = normCollector(tagNumber || data.collector_number_normalized);
-  const setCode = (data.set || (setTag ? setTag.split('-')[0] : '') || data.set_name || '').toUpperCase();
-
-  const foilTag = tags.find((t) => /foil|etched/i.test(t));
-  const finish = p.selectedFinish === 'foil' ? normFinish(foilTag || 'foil') : 'nonfoil';
-
-  const treatments = tags
-    .filter((t) => t !== setTag && t !== foilTag && !/^\d+$/.test(t))
-    .map(normTreatment)
-    .filter(Boolean);
+  const { setCode, collectorNumber, foilTag, treatments } = readTags(tags, data);
 
   const identity = {
     store: 'ce',
@@ -51,8 +35,8 @@ function toOffer(p, mode) {
     setName: data.set_name,
     setCode,
     collectorNumber,
-    finish,
-    treatments: [...new Set(treatments)],
+    finish: p.selectedFinish === 'foil' ? normFinish(foilTag || 'foil') : 'nonfoil',
+    treatments,
     condition: 'NM',
     image: p.image_url || null,
     raw: p.display_name,

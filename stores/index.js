@@ -10,4 +10,5 @@ module.exports = [
   require('./collectedition'),
   require('./401games'),
   require('./gamekeeper'),
+  require('./hobbiesville'),
 ];
