@@ -1,6 +1,6 @@
 # Store reference
 
-How each store's data is read, last verified 2026-10-02 (Collect-Edition's buy prices and listing minimum: 2026-10-07). All four stores serve CAD prices. None of these
+How each store's data is read, last verified 2026-10-02 (Collect-Edition's buy prices and listing minimum: 2026-10-07; Hobbiesville and Storepass paging: 2026-10-17). All five stores serve CAD prices. None of these
 endpoints is documented by the stores, so re-check them here first when a store's column goes blank.
 
 The first question for any store: **does its site display cash or credit?** It differs by store.
@@ -11,6 +11,7 @@ The first question for any store: **does its site display cash or credit?** It d
 | Collect-Edition | Storepass (buylist) + Shopify | **credit** | as shown (cash = credit ÷ 1.5) | exact count |
 | 401 Games | Storepass (buylist) + Shopify | cash (toggle to credit) | cash × 1.30 | exact count |
 | Game Keeper | Crystal Commerce (HTML) | cash | cash × 1.30 | max orderable qty |
+| Hobbiesville | Storepass (buylist) + Shopify | **credit** (toggle to cash) | as shown (cash × 1.25 up to $10 retail, × 1.143 above) | online warehouse's count |
 
 ---
 
@@ -37,7 +38,9 @@ Gotchas:
 ## Collect-Edition — `stores/collectedition.js`
 
 - Buylist host `buylist.collect-edition.com`, store_id `dFODoSzI0G`. Retail site: `cards.collect-edition.com`.
-- `GET /saas/search?store_id=…&product_line=Magic: the Gathering&mongo=true&sort=Relevance&name={name}&buylist_products=true&…&page={n}`, through `lib/storepass.js`.
+- `GET /saas/search?store_id=…&product_line=Magic: the Gathering&mongo=true&sort=Relevance&name={name}&buylist_products=true&…&page=1&limit=240`, through `lib/storepass.js` (shared with 401 Games and Hobbiesville).
+  - **One request.** In pages of 24 (the default), relevance sorting repeats some products and skips others from one page to the next: 401 Games' "Sol Ring" lost 13 to 18 of its 193 products, Hobbiesville's 4 to 18 of 183 (Collect-Edition's happened to be stable). `limit` goes to at least 1000 ("Island": 692 products in one response); 240, the old 10 pages of 24, keeps the most relevant.
+  - The other sorts are the site's labels (`Alphabetical: A-Z`, `Release Date: New-Old`…). Alphabetical paging is stable, but it would cut real matches, not the least relevant ones, when a search finds more than the limit.
 - Per product:
   - `display_name`, e.g. `Sol Ring - Elven (0408) (Serial Numbered) (LTC-408Z) - Tales of Middle-earth Commander Foil`. The name is the part before ` (`. Tags are the `(…)` groups before the last ` - `. `(SET-NUM)` gives the set code and collector number.
   - `selectedFinish` (`foil` / `nonfoil`), `product_data.set`, `.set_name`, `.collector_number_normalized` (drops letters such as `408Z`, so the tag is preferred).
@@ -89,6 +92,25 @@ Gotchas:
 - Search is fuzzy and relevance-sorted, so it returns unrelated cards after the real matches. Paging stops at the first page with no name match (max 8 pages).
 - Credit bonus: the English buy/sell policy says +30% for Magic; the French page says +50%. **30% is correct** (confirmed by the user).
 - The server often drops connections or returns 502, even for plain `curl`. Its requests make 4 attempts with backoff (`getText(url, { retries: 3 })` in `lib/http.js`; the other stores get 2). Keep request volume low.
+
+## Hobbiesville — `stores/hobbiesville.js`
+
+- Buylist host `buylist.hobbiesville.com`, store_id `cGCfZUZiX0` (`domainStoreId` in the buylist page). Retail site: `www.hobbiesville.com` (Shopify). Shops in Ottawa and Toronto; ships across Canada.
+- Same Storepass `/saas/search` as Collect-Edition, with the same `(…)` tags in `display_name` (read by `parseDisplayName()` / `readTags()` in `lib/storepass.js`), but no ` - <set name>` part:
+  - `Sol Ring (SOC-128)`, `Sol Ring (0356) (FIC-356)`, `Sol Ring (Borderless) (Surge Foil) (PIP-887) (Borderless) Foil`, `Sol Ring (Extended Art) (CMR-700): (Extended Art)`, and `Sol Ring (2ED-)` when there's no number (`product_data.collector_number_normalized` fills it in).
+  - Some names contain ` - ` (`Wild Rose Rebellion - Counterspell (Showcase) / Wild Rose Rebellion (FCA-004) (Borderless)`), so the name isn't cut there as it is for Collect-Edition.
+  - **Foil**: a ` Foil` at the end of `display_name`. It always matches the SKU's `-F-` (`MTG-PIP-887-F-539392-1`). `selectedFinish` and the `Foil or Non-Foil_Foil` tag are often wrong (`Sol Ring (M3C-305) Foil` is nonfoil in both).
+  - **Buylist**: the top-level `offer_price` (cash) and `offer_price_credit` (credit), the same as `store_pass_variant_info[title='NM']`.
+  - **Retail**: `variant_info[title='NM']` for the `price`. Stock: see below.
+- **Links**: retail `https://www.hobbiesville.com/variants/{NM variant id}` (redirects to the product page with NM selected); buylist `/retailer/buylist?q={front name}&product_line=Magic%3A%20the%20Gathering`, as for Collect-Edition. Their product pages also show the offer ("Sell to Us $28.88 cash / $33.01 credit").
+
+Gotchas:
+- The "Buy Price" on their buylist **is the credit value** by default (`default_payment_type: credit`). The cart's Cash button switches the page to cash.
+- Credit isn't a fixed bonus. From `/retailer/store-info`: credit = cash × 1.25 (the store's `credit_percent`) for cards up to $10 retail, × 1.143 (the Magic line's) above, and × 1 in a set's first two weeks. Both values are read from the API, never computed.
+- **Stock**: `inventory_quantity` adds up every Shopify location, but hobbiesville.com only sells what's at location `35200073750` (the online warehouse). Copies at the shops show "Item is out of stock online". So the stock is that location's `available` in `inventoryLevels`, for the NM variant's `inventory_item_id`. Checked on 31 products against `/products/{handle}.js`: `available` is true exactly when that location has copies. If Hobbiesville's stock reads 0 everywhere while the site has cards in stock, the online location changed.
+- Their price rules make **no offer** (0, shown as not buying) for Foreign Black Border, Alpha, Beta, old promo sets and a few others, and when they already hold too many copies (over 8; over 3 for Secret Lair or $150+ cards).
+- Their buylist page lists offers over $0.04 (`gt_price`); like Collect-Edition's, this app shows them all.
+- Products without an NM variant (a `Default Title` one-off) are skipped.
 
 ---
 

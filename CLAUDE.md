@@ -55,6 +55,7 @@ Update those docs when you change behavior they describe.
   - Use `sort/date_desc`, because relevance-sorted paging skips and duplicates cards. Max `pageSize` is 100.
   - `sellPrice` is **cash**; credit = cash × 1.3.
   - The search page the user may share is the retail store, not the buylist.
+- **Storepass** (Collect-Edition, 401 Games, Hobbiesville; `lib/storepass.js`): one `/saas/search` request with `limit=240`. Relevance-sorted pages of 24 skip and repeat products.
 - **Collect-Edition** (Storepass, store_id `dFODoSzI0G`):
   - The "Buy Price" on their site is already **credit** (`offer_price_credit`); cash = `offer_price`.
   - Retail price and stock are in `variant_info` (title `Near Mint`).
@@ -64,6 +65,10 @@ Update those docs when you change behavior they describe.
   - Set code and collector number come from the SKU (`MTGN-CM_038-EOC-057`).
   - Foil comes from the `Foil or Non-Foil_Foil` tag; `selectedFinish` is unreliable.
   - Retail data is in `variant_info` (title `NM`).
+- **Hobbiesville** (Storepass, store_id `cGCfZUZiX0`):
+  - The buylist's "Buy Price" is **credit** by default (`offer_price_credit`); cash = `offer_price`. The credit bonus depends on the card (+25% up to $10 retail, +14.3% above), so read both.
+  - Foil = a ` Foil` at the end of `display_name`; `selectedFinish` and the Foil tag are unreliable.
+  - Stock counts only Shopify location `35200073750` (`inventoryLevels`), what hobbiesville.com sells online; `inventory_quantity` includes the shops' copies.
 - **Game Keeper** (Crystal Commerce, HTML only):
   - Pages: `/buylist/search` and `/products/search`, with `c=1&q=&page=`.
   - Results are relevance-sorted, so paging stops at the first page with no name match.

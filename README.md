@@ -1,6 +1,6 @@
 # MTG Price Checker
 
-Compare Magic: The Gathering prices across Quebec game stores, in both directions:
+Compare Magic: The Gathering prices across Quebec and Ontario game stores, in both directions:
 
 - **Selling**: what each store's buylist pays for your cards, in **store credit** or **cash**. Find the store that gives you the most.
 - **Buying**: each store's retail price **and stock** for the cards you want. Find the cheapest store that actually has the card.
@@ -13,6 +13,7 @@ Supported stores:
 | [Collect-Edition](https://cards.collect-edition.com) | credit as shown on site, cash = credit / 1.5 | price + stock |
 | [401 Games](https://store.401games.ca) | cash, credit = cash + 30% | price + stock |
 | [Game Keeper Online](https://www.gamekeeperonline.com) | cash, credit = cash + 30% | price + stock |
+| [Hobbiesville](https://www.hobbiesville.com) | credit as shown on site (cash with its toggle), credit = cash + 14% to 25% | price + online stock |
 
 ## Features
 
@@ -23,7 +24,7 @@ Supported stores:
 - Keep a saved **sell list** and a separate **wishlist**, and refresh all their prices in one click (or just one wishlist list or "Selling to <store>" list, with its own **Refresh**). The button shows its progress (`Refreshing 12 / 55…`).
 - After a refresh, each list price that moved shows how much under it (`▲ $1.30`), green when it's better for you (a higher offer when selling, a lower price when buying) and red when worse; hover it for the old price and date. A wishlist card that came back in stock says so. "Prices from …" also says how many prices changed.
 - Click a card's name (in the search results or any list) to copy it, ready to paste into a store's site; a small "✓ Copied" flashes next to it. Two-name cards copy only the front name (`Clive Rosfield - Vial Smasher the Fierce` → `Clive Rosfield`), which every store's search finds.
-- Click a price to open that card at the store, in a new tab: the exact printing's page where the store has one (the buylist search for Collect-Edition and 401 Games when selling).
+- Click a price to open that card at the store, in a new tab: the exact printing's page where the store has one (the buylist search for Collect-Edition, 401 Games and Hobbiesville when selling).
 - Lists are sorted by card name. Star the cards you're actually selling or buying: they're pinned to the top, with their own subtotal.
 - Removed a card by mistake? "Removed <card> · **Undo**" shows for 8 seconds and puts it back exactly as it was (star, list, quantity).
 - When selling, move the starred cards to a store: they go into a "Selling to <store>" list under the main one (all stores' offers still shown, that store highlighted). Unstar a card to send it back. Each card in a store list has a faint **+** to add copies (it then shows **− 2× +**); the store totals count every copy. Each store list has a **Print** button for a printable sheet with that store's credit and cash prices (line totals per quantity). Once you've entered the list on the store's own buylist, **Clear list** removes those cards from your sell list for good (after a confirmation; they don't go back to the main list). A store can have several lists, e.g. one sent and waiting and a new one: pick "Selling to <store> (2) · new list" when moving cards. The next ones are titled "Selling to <store> (2)", "(3)"…
@@ -64,6 +65,7 @@ stores/              one adapter per store
   collectedition.js    Storepass buylist API (also carries retail variants)
   401games.js          Storepass buylist API (also carries retail variants)
   gamekeeper.js        Crystal Commerce HTML pages (no JSON API)
+  hobbiesville.js      Storepass buylist API (also carries retail variants)
   index.js             store registry
 lib/
   http.js              store requests: User-Agent, 15 s timeout, retries

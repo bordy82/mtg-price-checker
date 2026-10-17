@@ -13,8 +13,9 @@ flowchart LR
   R --> C["collectedition.js"]
   R --> Q["401games.js"]
   R --> G["gamekeeper.js"]
-  C & Q --> SP["lib/storepass.js"]
-  F & C & Q & G --> N["lib/normalize.js"]
+  R --> V["hobbiesville.js"]
+  C & Q & V --> SP["lib/storepass.js"]
+  F & C & Q & G & V --> N["lib/normalize.js"]
   F & SP & G & S --> H["lib/http.js"]
   S --> M["lib/match.js"]
   S <--> D[("data/list.json<br/>data/wishlist.json")]
@@ -66,10 +67,10 @@ Each adapter maps its store's data onto a shared **printing identity** and then 
 Per-store sources, fields and quirks are in [STORES.md](STORES.md).
 
 ### `lib/storepass.js`
-`fetchProducts(host, storeId, name)` is used by Collect-Edition and 401 Games, whose buylists run on the
-Storepass platform.
-- It makes a count request (`with_count=true` gives `pages`), then fetches up to 10 pages of 24 in parallel and de-duplicates by product id.
+Shared by Collect-Edition, 401 Games and Hobbiesville, whose buylists run on the Storepass platform.
+- `fetchProducts(host, storeId, name)` makes one relevance-sorted request for up to 240 products (`limit=240`). Pages of 24 (the default) aren't stable under relevance sorting: some products repeat and others are skipped from one page to the next (see [STORES.md](STORES.md#collect-edition--storescollecteditionjs)).
 - One response carries both the buylist offers and the Shopify retail variants, so both modes use it.
+- `parseDisplayName(display)` and `readTags(tags, data)` read Collect-Edition's and Hobbiesville's display names: the name before the first ` (`, then from the `(…)` tags the set code and collector number (`(FIN-350)`, falling back to `product_data`), the special-foil label (`Surge Foil`) and the versions. Collect-Edition first cuts off its ` - <set name>` part. 401 Games names its products differently and has its own parser.
 
 ### `lib/http.js`
 Every store request, and the Scryfall one, goes through `getJson(url, options)` or `getText(url, options)` (Game Keeper's HTML). Options: `retries`, `userAgent` and `timeoutMs`.
@@ -114,7 +115,7 @@ Turns each store's naming into comparable values:
 - Clear search (#71): `#search-clear`, a ✕ over the right end of the search field, shows while the field has text or `#search-status` has something (a search running, its results' count, or its message): `renderSearchClear()`, called on input, at a search's start and end, and in `clearResults()`. It and Esc with no suggestions open call `resetSearch()`: close the suggestions, empty the field, `clearResults()` (which also aborts a running search), focus the field. The lists, refreshes and the undo bar are untouched. The browser's own ✕ for `type="search"` (`::-webkit-search-cancel-button`) is hidden: it only emptied the text.
 - Clicking a store's column header (a `.store-toggle` button, in either table) adds it to `excluded` for the current view: `bestStore` skips it, so it never turns green, and its column (prices and totals) is dimmed but still shown. Clicking again removes it.
 - Card names (search results and every list table, via `nameButton()`) are `.copy-name` buttons styled as the bold name text. One delegated click handler copies the **front name** (`data-copy`); the `title` tooltip says what will be copied. There's no toast (the user didn't want one): `showCopied()` puts a small "✓ Copied" pill (or "Couldn't copy") right after the clicked name for 1.5 s, then fades it out (#32). It's `position: absolute` with no offsets, so it sits where it would inline but takes no space: it briefly covers the version tags instead of wrapping them onto a new line. One timer per button (`WeakMap`), so a second click restarts it; a re-render just drops it. The page's `frontName()` uses the same rule as `frontName()` in `lib/normalize.js`; keep them in sync. `copyText()` uses `navigator.clipboard.writeText`, which needs a secure context (`http://localhost` is one; a LAN address like `http://192.168.x.x:3000` from a phone is not), and falls back to a hidden `<textarea>` + `document.execCommand('copy')`; it returns whether it copied. The print sheet keeps plain-text names.
-- Card images (#41): `thumb()` shows each row's `image` as a 34 px thumbnail; hovering it shows `#card-preview` (230 px wide), a single `position: fixed` image placed beside the row so the scrolling table frame can't clip it. Stores link full-size scans (Face to Face's are 1469 px wide, ~100 KB each), so `sized(url, px)` adds `width=` to `cdn.shopify.com` URLs (Face to Face, Collect-Edition, 401 Games): `THUMB_PX` (80, sharp on 2× screens) for the thumbnail and `PREVIEW_PX` (480) for the preview. Other hosts (Game Keeper's images are already small) load unchanged. It's applied when rendering; saved items keep the full URL.
+- Card images (#41): `thumb()` shows each row's `image` as a 34 px thumbnail; hovering it shows `#card-preview` (230 px wide), a single `position: fixed` image placed beside the row so the scrolling table frame can't clip it. Stores link full-size scans (Face to Face's are 1469 px wide, ~100 KB each), so `sized(url, px)` adds `width=` to `cdn.shopify.com` URLs (Face to Face, Collect-Edition, 401 Games, Hobbiesville): `THUMB_PX` (80, sharp on 2× screens) for the thumbnail and `PREVIEW_PX` (480) for the preview. Other hosts (Game Keeper's images are already small) load unchanged. It's applied when rendering; saved items keep the full URL.
 - The chosen mode and the excluded stores are remembered in `localStorage` (`mtg-buylist:view`, `mtg-buylist:excluded`; unknown store ids are ignored). Lists are saved through the API after every change (add, remove, star, move, quantity, refresh). `saveList(view)` keeps one `PUT` per list in flight; changes made meanwhile are sent together right after it, as the list is then, so saves never overlap or arrive out of order (#40). A failed save shows `#save-error` under the list header ("Couldn't save: … Your last change isn't stored." with **Retry**) until a save succeeds; any later change retries too.
 
 ## Data shapes
