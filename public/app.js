@@ -262,14 +262,21 @@ function priceCell(card, storeId, best, chosen) {
 }
 
 // Clicking a store's header leaves it out of the comparison (its column dims); clicking again brings it back.
+// Headers show the store's logo (#82), narrower than its name; `logoDark` replaces it on the dark theme, and a store
+// without a logo shows its name. The tooltip (.store-tip, shown at once on hover or focus) names the store, then
+// gives its credit note and what a click does; the button's aria-label says the same.
 function storeHeaders(chosen) {
   return state.stores
     .map((s) => {
       const included = isIncluded(s.id);
       const hint = included ? 'Click to leave out of the comparison' : 'Click to compare again';
-      const title = state.view === 'sell' ? `${s.creditNote} · ${hint}` : hint;
+      const details = [state.view === 'sell' ? s.creditNote : '', hint].filter(Boolean).join(' · ');
+      const img = `<img class="store-logo" src="${esc(s.logo)}" alt="${esc(s.label)}">`;
+      const dark = s.logoDark ? `<source srcset="${esc(s.logoDark)}" media="(prefers-color-scheme: dark)">` : '';
+      const content = !s.logo ? `<span class="store-name">${esc(s.label)}</span>` : dark ? `<picture>${dark}${img}</picture>` : img;
+      const tip = `<span class="store-tip" aria-hidden="true"><b>${esc(s.label)}</b><span>${esc(details)}</span></span>`;
       return `<th class="${colClass(s.id, chosen)}"><button class="store-toggle" data-store="${esc(s.id)}"
-        aria-pressed="${included}" title="${esc(title)}">${esc(s.label)}</button></th>`;
+        aria-pressed="${included}" aria-label="${esc(`${s.label} · ${details}`)}">${content}${tip}</button></th>`;
     })
     .join('');
 }

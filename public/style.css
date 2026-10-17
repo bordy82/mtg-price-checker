@@ -113,10 +113,30 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
 }
 /* Store headers are buttons (click to leave the store out) but look like plain header text. */
 .grid th .store-toggle {
-  background: none; border: 0; padding: 0; margin: 0; border-radius: 0;
+  position: relative; background: none; border: 0; padding: 0; margin: 0; border-radius: 0;
   font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer;
 }
 .grid th .store-toggle:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+/* Store logos (#82): square marks, narrower than the names, so the columns are as wide as their prices. Prices are
+   right-aligned and columns get wider than them on wide screens, so the logo is centered over a price box's width
+   (about 75 px) at the right of the header, not over the whole column. */
+.grid th .store-toggle:has(.store-logo) {
+  display: inline-flex; justify-content: center; min-width: 75px; padding-bottom: 5px; vertical-align: middle;
+}
+.store-logo { display: block; height: 24px; width: auto; max-width: 36px; object-fit: contain; }
+.grid th .store-toggle:hover .store-logo { transform: scale(1.12); }
+/* The store's name, credit note and what a click does, shown at once on hover or keyboard focus (a `title` tooltip
+   takes a second or two). Below the header: the table frame scrolls sideways, so anything above it is cut off. */
+.store-tip {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 3; display: grid; gap: 1px;
+  width: max-content; max-width: 240px; padding: 6px 9px; border-radius: 6px;
+  background: var(--ink); color: var(--panel); box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+  font-size: 12px; font-weight: 400; line-height: 1.35; text-align: left; text-transform: none; letter-spacing: normal;
+  white-space: normal; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .12s, visibility .12s;
+}
+.store-tip b { font-weight: 600; }
+.store-tip span { opacity: .75; }
+.store-toggle:hover .store-tip, .store-toggle:focus-visible .store-tip { opacity: 1; visibility: visible; transition-delay: .15s; }
 .grid td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .grid tbody tr:hover { background: color-mix(in srgb, var(--chip) 50%, transparent); }
 .grid th.num, .grid td.num { text-align: right; white-space: nowrap; }
@@ -180,10 +200,15 @@ a.price-link:hover .main { text-decoration: underline; text-underline-offset: 3p
 .change.better { color: var(--best-ink); }
 .change.worse { color: color-mix(in srgb, var(--danger) 70%, var(--muted)); }
 /* A store left out of the comparison: its column stays readable but dimmed. */
-.grid .excluded { opacity: .4; }
+/* In the header, only the logo or name dims, not its tooltip. */
+.grid td.excluded, .grid th.excluded .store-logo, .grid th.excluded .store-name { opacity: .4; }
+.grid th.excluded .store-logo { filter: grayscale(1); }
 /* In a "Selling to <store>" list, that store's column is tinted (distinct from green "best" and dimmed "excluded"). */
 .grid .chosen { background: color-mix(in srgb, var(--accent) 9%, transparent); }
 .grid th.chosen { color: var(--accent); }
+.grid th.chosen .store-toggle:has(.store-logo)::after {
+  content: ''; position: absolute; bottom: 0; left: 50%; width: 28px; height: 2px; margin-left: -14px; background: var(--accent);
+}
 
 /* A list save failed (#40): shown under the list header until a save succeeds. */
 .save-error {

@@ -16,6 +16,7 @@ these, the user decides on a new card; update the line then.
 ## Page
 
 - **Copying a card name shows "✓ Copied" right after the name, not a toast.** #25's toast was dropped at review (#32).
+- **Store columns are headed by the store's square logo, not its name**, so columns stay narrow as stores are added. The name is in the tooltip, and stays everywhere else, print sheets included (#82).
 
 ## Stores
 

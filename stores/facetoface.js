@@ -109,6 +109,8 @@ const searchRetail = (name) => fetchAll(name, 'buy');
 module.exports = {
   id: 'f2f',
   label: 'Face to Face',
+  logo: 'logos/f2f.png',
+  logoDark: 'logos/f2f-dark.png', // the shield's lower half is dark grey, lost on the dark theme
   creditNote: 'cash + 30%',
   links: LINKS,
   search,

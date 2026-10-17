@@ -141,6 +141,7 @@ async function searchRetail(query) {
 module.exports = {
   id: 'gk',
   label: 'Game Keeper',
+  logo: 'logos/gk.png',
   creditNote: 'cash + 30%',
   links: LINKS,
   search,
