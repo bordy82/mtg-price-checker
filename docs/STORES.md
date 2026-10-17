@@ -1,6 +1,6 @@
 # Store reference
 
-How each store's data is read, last verified 2026-10-02 (Collect-Edition's buy prices and listing minimum: 2026-10-07; Hobbiesville and Storepass paging: 2026-10-17). All five stores serve CAD prices. None of these
+How each store's data is read, last verified 2026-10-02 (Collect-Edition's buy prices and listing minimum: 2026-10-07; Hobbiesville, Storepass paging and Cartes Sportives Rive-Sud: 2026-10-17). All six stores serve CAD prices. None of these
 endpoints is documented by the stores, so re-check them here first when a store's column goes blank.
 
 The first question for any store: **does its site display cash or credit?** It differs by store.
@@ -12,6 +12,7 @@ The first question for any store: **does its site display cash or credit?** It d
 | 401 Games | Storepass (buylist) + Shopify | cash (toggle to credit) | cash × 1.30 | exact count |
 | Game Keeper | Crystal Commerce (HTML) | cash | cash × 1.30 | max orderable qty |
 | Hobbiesville | Storepass (buylist) + Shopify | **credit** (toggle to cash) | as shown (cash × 1.25 up to $10 retail, × 1.143 above) | online warehouse's count |
+| Cartes Sportives Rive-Sud | SortSwift (buylist) + Shopify | **cash and credit** | as shown (65% vs 60% of TCGplayer market: cash × 1.083) | exact count |
 
 ---
 
@@ -112,6 +113,26 @@ Gotchas:
 - Their buylist page lists offers over $0.04 (`gt_price`); like Collect-Edition's, this app shows them all.
 - Products without an NM variant (a `Default Title` one-off) are skipped.
 
+## Cartes Sportives Rive-Sud — `stores/cartessportivesrivesud.js`
+
+- Sainte-Catherine, QC (6252 Rte 132), an in-person store. Two platforms, neither used by another store here, both built on **TCGplayer's products**: names like `Sol Ring (0356) (Surge Foil)`, TCGplayer's set names ("Commander: FINAL FANTASY"), its product ids. No bot check on either.
+- **Buylist**: SortSwift, `https://buylist.cartessportivesrivesud.com` (the site's "Sell Your Cards"). Public JSON API under `https://buylist-api.sortswift-services.com/api/buylist/`; the store's id there is `cartessportivessivesud` (sic). Magic is `categoryId=1`.
+  - `GET search?query={name}&page=1&limit=500&sort=nameAsc&categoryId=1&storeId=…&single=true&sealed=false` → `{ products, totalCount }` ("Sol Ring": 168, "Island": 1030; one request, `limit` goes to at least 1000). Each product: `productId`, `name`, `groupId` / `groupName` (the TCGplayer set; **no set code**), `number`, `cdnImage` (full size, ~180 KB), and `prices[]` per `subTypeName` (`Normal`, `Foil`) in USD. It doesn't carry the store's offer. The search is fuzzy ("Solemn Offering" for "Sol Ring"), so only products named like the card are priced: exact names first, at most 300 printings (30 requests).
+  - `POST get-price/bulk` with up to 10 `{ productId, condition: 'NM', printing, language: 'EN', storeId, cartQuantity: 0 }` → `{ prices: [{ productId, printing, …, price }] }`. `price.NMFinalCash` / `price.NMFinalCredit` are the offers (3 decimals; the site rounds to the nearest cent), `price.buying.NM`, `price.stockLimitReached`, `price.inventoryQuantity` (their stock of that printing, the same count as the shop's). The site sends 10 printings per request, 3 requests at a time; so does the adapter. `GET get-price?productId=…&printing=…&condition=NM&language=EN&storeId=…` is the one-printing version. It accepts more than 10 per request (30 worked); the adapter keeps to the site's 10.
+  - **Set codes and numbers come from Scryfall** (`printsByTcgplayerId()` in `lib/scryfall.js`, one search per card name, cached a day): Scryfall lists each printing's `tcgplayer_id` (and `tcgplayer_etched_id`), so a product gets Scryfall's set code, set name and collector number (`PFIN 253s` for TCGplayer's "Prerelease Cards" 253). TCGplayer has separate products for some special foils (`Sol Ring (0356) (Surge Foil)`) that Scryfall doesn't link; those take the set of the other products of their TCGplayer group when they all agree, and their number from SortSwift. "Sol Ring": 176 of 180 offers get a code (the 4 others are Art Series cards, which no other store lists), and 3 of 176 rows show only this store. If Scryfall can't be reached, offers keep TCGplayer's set name and number and match by name only (more rows stay apart); the store doesn't fail.
+  - The List: Scryfall's `PLST` numbers its cards by original set (`C18-222`), as 401 Games does; Face to Face and Hobbiesville call the set `LIST`, so `PLST` offers also get the alternate code `LIST`. Without Scryfall, TCGplayer's "The List Reprints" product (`Sol Ring (C18)`, number `222/307`) is turned into the same.
+- **Retail**: Shopify, `https://cartessportivesrivesud.com` (Warehouse theme).
+  - The search page, with only the results section: `/search?type=product&page={n}&q=product_type:"Magic: The Gathering Singles" AND title:"{name}"&section_id=template--17446591955231__main` (~270 KB a page instead of ~830 KB; 24 products a page; page 1 says "41 results", so the others load together). An unknown section id answers 404: a new theme renames it, and the adapter then reads whole pages. `/search/suggest.json` stops at 10 results.
+  - Each product item has the product's JSON (`<script type='application/json' class='wcp_json …'>`, from an app): `title` (`Sol Ring [CLB - 871]`, `Sol Ring (C18) [LIST - 222/307]`, `Sol Ring (0211) [MSC]`: set code and number in brackets), `vendor` (the TCGplayer set name), `type`, `handle`, `featured_image`, `options` (`Condition`, `Language`, `Printing`) and `variants` (`Near Mint / English / Normal`…, `price` in cents, `available`; no stock count, `inventory_quantity` is null in `/products/{handle}.json`). Sold-out products are listed too.
+  - **Stock**: the item's "In stock, 4 units" / "Only 1 unit left" is the **product's** count, over all its variants. It's exact when only one variant is in stock (almost always). When several are (NM Normal and Foil, or NM and LP), the adapter reads that product's page (`/products/{handle}`, ~600 KB), whose `"inventories"` (the theme's stock messages, by variant id) and a labels app's variant list both carry each variant's `inventory_quantity`. E.g. Sol'kanar the Swamp King DMR 368 shows "In stock, 3 units": 1 Normal and 2 Foil.
+  - Images are under the shop's own `/cdn/shop/files/…`, which resizes on `width=` like `cdn.shopify.com`.
+- **Links**: retail `https://cartessportivesrivesud.com/variants/{NM variant id}` (redirects to the product page with that variant selected). The buylist page doesn't read a search from its URL (you pick Magic: The Gathering, then search), so selling links go to `https://buylist.cartessportivesrivesud.com/`.
+
+Gotchas:
+- The buylist site shows **both** cash and credit for every card (Credit is selected by default, `defaultPayment: credit`), so both are read from the API. From the store config (`__NEXT_DATA__` on the buylist page, `gameSettings["1"].pricingOptions`): over $1, cash = 60% and credit = 65% of TCGplayer's market price in CAD (`marketPrice`, `chosenPriceType: market`, falling back to mid, low, high); at $1 and under, a fixed $0.005 both ("Bulk" on the site, shown as $0.005: the page prints half cents with 3 decimals). Credit isn't cash × 1.3; it's about cash × 1.083.
+- They buy NM and LP English only, and stop at 5 copies in stock (`stockLimitations.maxQuantityPerProduct`, per printing): the offer is then 0 and the site says "Not buying" (Sol Ring MOC 381 with 5 in stock). Payment is e-transfer or store credit.
+- Checked against the site on 2026-10-17 for "Sol Ring", "Aettir and Priwen" and "Sephiroth, Fabled SOLDIER", Normal and Foil (e.g. Aettir and Priwen FIN 350: $15.60 / $16.90, Foil $33.65 / $36.45).
+
 ---
 
 ## Logos — `public/logos/`
@@ -126,6 +147,7 @@ Column headers show each store's square mark (#82), saved here rather than linke
 | `401.png` | the green dice, their Storepass logo: `https://d2k4q26owzy373.cloudfront.net/700x700/games/userfiles/1732742151707-401_DICE_VERT_COL_GREY.png` |
 | `gk.png` | the red wings, `https://bluedefault.crystalcommerce.com/themes/clients/gamekeeperonline/assets/img/favicon.ico` (a 64×64 PNG; the wings in `logo-2017.png` are 5× wider than tall) |
 | `hv.png` | the "H", `https://www.hobbiesville.com/cdn/shop/files/h_logo_hobbiesville_large_5540fe46-d1c3-4c52-a8a9-f5cb1102c438.png` |
+| `csrs.png` | the cards and "CSRS" square, the buylist's favicon: `https://buylist-logos.nyc3.cdn.digitaloceanspaces.com/store-45cd4c39a63a978b/1781285644502-favicon_CSRS_Logo_2.png`. Its cream background was made transparent around the mark (the cards stay white inside), so it reads on both themes: on the dark one, the white letters and cards carry it |
 
 The stores' wide logos don't suit the headers: 401 Games' "GAMES" is white (invisible on the light theme) and Game Keeper's text is dark. Shopify image URLs take `?width=`.
 

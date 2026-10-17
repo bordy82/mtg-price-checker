@@ -270,6 +270,8 @@ dialog.confirm p { margin: 0 0 18px; color: var(--muted); }
   #print-sheet th { text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1.5pt solid #000; padding: 4pt 6pt; }
   #print-sheet td { border-bottom: .5pt solid #bbb; padding: 5pt 6pt; vertical-align: top; }
   #print-sheet .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  /* Store names may wrap ("Cartes Sportives / Rive-Sud", #80); the prices under them don't. */
+  #print-sheet th.num { white-space: normal; vertical-align: bottom; }
   #print-sheet .ps-name { font-weight: 600; }
   #print-sheet .ps-meta { font-size: 9pt; color: #444; }
   #print-sheet .ps-each { font-size: 8pt; color: #444; font-weight: 400; }
@@ -278,7 +280,9 @@ dialog.confirm p { margin: 0 0 18px; color: var(--muted); }
   #print-sheet .ps-oos { color: #888; }
   #print-sheet .ps-oos .ps-each { color: #888; }
   #print-sheet tfoot td { font-weight: 700; border-top: 1.5pt solid #000; border-bottom: 0; }
-  #print-sheet tfoot .ps-note td { font-weight: 400; color: #444; border-top: 0; padding-top: 0; }
+  #print-sheet tfoot .ps-note td { font-weight: 400; font-size: 9pt; color: #444; border-top: 0; padding-top: 0; }
+  /* A wishlist sheet has a column per store; at six (#80) the card column would shrink to a word per line. */
+  #print-sheet .ps-compare th:first-child { width: 24%; }
 }
 
 .add-cell { white-space: nowrap; text-align: right; }
