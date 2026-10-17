@@ -1,5 +1,5 @@
 const state = {
-  stores: [],
+  stores: [], // in column order (#83): the saved order, or the server's default (in-person stores, then online ones)
   view: 'sell', // 'sell' = buylist offers + cards to sell, 'buy' = retail prices + wishlist
   sellValue: 'credit', // in sell view, which value decides the "best" store
   results: [],
@@ -24,6 +24,7 @@ const finishGroup = (f) => (f === 'nonfoil' || f === 'etched' ? f : 'foil');
 const NORMAL = 'Normal';
 const VIEW_KEY = 'mtg-buylist:view';
 const EXCLUDED_KEY = 'mtg-buylist:excluded';
+const ORDER_KEY = 'mtg-buylist:storeOrder';
 
 // "Selling to <store>" lists (#72): a store can have several, numbered by `sellList` (missing = 1).
 // A list's id is `<store id>:<number>`.
@@ -270,8 +271,8 @@ function storeHeaders(chosen) {
     .map((s) => {
       const included = isIncluded(s.id);
       const hint = included ? 'Click to leave out of the comparison' : 'Click to compare again';
-      const details = [state.view === 'sell' ? s.creditNote : '', hint].filter(Boolean).join(' · ');
-      const img = `<img class="store-logo" src="${esc(s.logo)}" alt="${esc(s.label)}">`;
+      const details = [state.view === 'sell' ? s.creditNote : '', hint, 'Drag to move the column'].filter(Boolean).join(' · ');
+      const img = `<img class="store-logo" src="${esc(s.logo)}" alt="${esc(s.label)}" draggable="false">`;
       const dark = s.logoDark ? `<source srcset="${esc(s.logoDark)}" media="(prefers-color-scheme: dark)">` : '';
       const content = !s.logo ? `<span class="store-name">${esc(s.label)}</span>` : dark ? `<picture>${dark}${img}</picture>` : img;
       const tip = `<span class="store-tip" aria-hidden="true"><b>${esc(s.label)}</b><span>${esc(details)}</span></span>`;
@@ -279,6 +280,14 @@ function storeHeaders(chosen) {
         aria-pressed="${included}" aria-label="${esc(`${s.label} · ${details}`)}">${content}${tip}</button></th>`;
     })
     .join('');
+}
+
+// The header's last cell, over the row actions: a ↺ that puts the store columns back in their default order, shown
+// only once they've been moved (#83).
+function orderResetCell() {
+  if (isDefaultOrder()) return '<th></th>';
+  return `<th class="col-tools"><button class="icon reset-order" title="Put the store columns back in their default order"
+    aria-label="Reset the store column order">↺</button></th>`;
 }
 
 // ---- search ----
@@ -397,7 +406,7 @@ function renderResults() {
   $('#search-status').textContent =
     (rows.length === total ? `${total} printings found` : `Showing ${rows.length} of ${total} printings`) +
     (state.failedNote || '');
-  table.querySelector('thead').innerHTML = `<tr><th></th><th>Card</th><th>Version</th>${storeHeaders()}<th></th></tr>`;
+  table.querySelector('thead').innerHTML = `<tr><th></th><th>Card</th><th>Version</th>${storeHeaders()}${orderResetCell()}</tr>`;
   table.querySelector('tbody').innerHTML = rows.length
     ? rows.map((p) => {
         const best = bestStore(p.prices);
@@ -532,7 +541,7 @@ function listTable(items, { subtotal = false, chosen = null, qty = false } = {})
       totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred, { perCopy: qty }), 'starred'));
   }
   return {
-    thead: `<tr><th></th><th></th><th>Card</th>${storeHeaders(chosen)}<th></th></tr>`,
+    thead: `<tr><th></th><th></th><th>Card</th>${storeHeaders(chosen)}${orderResetCell()}</tr>`,
     tbody: html.join(''),
     tfoot: totalRows(c.totalLabel(), listTotals(items, { perCopy: qty }), '', chosen),
   };
@@ -842,6 +851,64 @@ function saveExcluded() {
   try {
     localStorage.setItem(EXCLUDED_KEY, JSON.stringify({ sell: [...state.excluded.sell], buy: [...state.excluded.buy] }));
   } catch {}
+}
+
+// ---- store column order (#83): one order for both views ----
+// /api/stores sends the default order: in-person stores, then online ones. A saved order (store ids) reorders
+// state.stores, which every table, total row, print sheet, "Selling to" section and the move bar follow.
+
+let defaultStores = [];
+
+function orderedStores(saved) {
+  const byId = new Map(defaultStores.map((s) => [s.id, s]));
+  // Ignore stores that no longer exist (and repeats).
+  const ids = (Array.isArray(saved) ? saved : []).filter((id, i, all) => byId.has(id) && all.indexOf(id) === i);
+  // A store added since the order was saved goes after the last saved store of its group (in person or online);
+  // with none, in-person stores go first and online ones last.
+  for (const s of defaultStores) {
+    if (ids.includes(s.id)) continue;
+    const last = ids.findLastIndex((id) => byId.get(id).online === s.online);
+    if (last >= 0) ids.splice(last + 1, 0, s.id);
+    else if (s.online) ids.push(s.id);
+    else ids.unshift(s.id);
+  }
+  return ids.map((id) => byId.get(id));
+}
+
+function loadStoreOrder() {
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(ORDER_KEY) || 'null');
+  } catch {}
+  state.stores = orderedStores(saved);
+}
+
+const isDefaultOrder = () => state.stores.every((s, i) => s.id === defaultStores[i]?.id);
+
+function saveStoreOrder() {
+  try {
+    // Back in the default order: forget the saved one, so the default applies again (e.g. to a new store).
+    if (isDefaultOrder()) localStorage.removeItem(ORDER_KEY);
+    else localStorage.setItem(ORDER_KEY, JSON.stringify(state.stores.map((s) => s.id)));
+  } catch {}
+}
+
+// Puts store `id` at index `to` of the column order and redraws every table.
+function moveStore(id, to) {
+  const from = state.stores.findIndex((s) => s.id === id);
+  if (from < 0 || from === to) return;
+  const [store] = state.stores.splice(from, 1);
+  state.stores.splice(to, 0, store);
+  saveStoreOrder();
+  renderList();
+  if (state.results.length) renderResults();
+}
+
+function resetStoreOrder() {
+  state.stores = [...defaultStores];
+  saveStoreOrder();
+  renderList();
+  if (state.results.length) renderResults();
 }
 
 function setView(view) {
@@ -1253,10 +1320,82 @@ $('#move-btn').addEventListener('click', () => {
   renderList();
 });
 
+// Dragging a store header sideways moves its column (#83), in every table. Pointer events rather than HTML5 drag and
+// drop: Firefox doesn't start a native drag from a <button>, and this tells a drag from a click. It starts after 6 px;
+// a bar (#col-marker) shows where the column will land. Mouse and pen only: on a touch screen a swipe scrolls the table.
+const DRAG_PX = 6;
+const drag = { id: null, x: 0, table: null, active: false, to: null };
+// The click the browser sends with the release that ends a drag mustn't also toggle the store. It comes in the same
+// task as the pointerup, so the flag is cleared on the next one.
+let dragClick = false;
+
+function storeHeaderCells(table) {
+  return [...table.querySelectorAll('thead .store-toggle')].map((b) => b.closest('th'));
+}
+
+function endDrag() {
+  if (drag.active) {
+    dragClick = true;
+    setTimeout(() => (dragClick = false));
+  }
+  document.body.classList.remove('col-drag');
+  document.querySelectorAll('th.col-dragged').forEach((th) => th.classList.remove('col-dragged'));
+  $('#col-marker').hidden = true;
+  Object.assign(drag, { id: null, table: null, active: false, to: null });
+}
+
+document.addEventListener('pointerdown', (e) => {
+  const b = e.target.closest('.store-toggle');
+  if (!b || e.button !== 0 || e.pointerType === 'touch') return;
+  Object.assign(drag, { id: b.dataset.store, x: e.clientX, table: b.closest('table'), active: false, to: null });
+  // Keeps the moves and the release coming to us when the pointer leaves the header (or the window).
+  try {
+    b.setPointerCapture(e.pointerId);
+  } catch {}
+});
+
+document.addEventListener('pointermove', (e) => {
+  if (!drag.id || (!drag.active && Math.abs(e.clientX - drag.x) < DRAG_PX)) return;
+  const cells = storeHeaderCells(drag.table);
+  const from = cells.findIndex((th) => th.querySelector(`.store-toggle[data-store="${CSS.escape(drag.id)}"]`));
+  if (from < 0) return endDrag();
+  if (!drag.active) {
+    drag.active = true;
+    document.body.classList.add('col-drag');
+    cells[from].classList.add('col-dragged');
+  }
+  // The gap nearest the pointer: before column i (0…n-1) or after the last one (n).
+  const rects = cells.map((th) => th.getBoundingClientRect());
+  const gaps = [...rects.map((r) => r.left), rects.at(-1).right];
+  const gap = gaps.reduce((best, x, i) => (Math.abs(x - e.clientX) < Math.abs(gaps[best] - e.clientX) ? i : best), 0);
+  drag.to = gap > from ? gap - 1 : gap;
+  const marker = $('#col-marker');
+  // Dropping beside its own place changes nothing: no bar.
+  marker.hidden = drag.to === from;
+  if (marker.hidden) return;
+  const table = drag.table.getBoundingClientRect();
+  const top = Math.max(table.top, 0);
+  Object.assign(marker.style, {
+    left: `${gaps[gap] - 1.5}px`, top: `${top}px`, height: `${Math.max(0, Math.min(table.bottom, innerHeight) - top)}px`,
+  });
+});
+
+document.addEventListener('pointerup', () => {
+  if (!drag.id) return;
+  const { active, id, to } = drag;
+  endDrag();
+  if (active && to !== null) moveStore(id, to);
+});
+document.addEventListener('pointercancel', endDrag);
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.reset-order')) resetStoreOrder();
+});
+
 // Store headers in either table toggle that store for the current view; both tables re-render.
 document.addEventListener('click', (e) => {
   const b = e.target.closest('.store-toggle');
-  if (!b) return;
+  if (!b || dragClick) return;
   const excluded = state.excluded[state.view];
   if (excluded.has(b.dataset.store)) excluded.delete(b.dataset.store);
   else excluded.add(b.dataset.store);
@@ -1270,11 +1409,12 @@ document.addEventListener('click', (e) => {
     const saved = localStorage.getItem(VIEW_KEY);
     if (saved === 'buy' || saved === 'sell') state.view = saved;
   } catch {}
-  [state.stores, state.lists.sell, state.lists.buy] = await Promise.all([
+  [defaultStores, state.lists.sell, state.lists.buy] = await Promise.all([
     api('/api/stores'),
     api('/api/list?mode=sell'),
     api('/api/list?mode=buy'),
   ]);
+  loadStoreOrder();
   loadExcluded();
   applyView();
   setInterval(renderUpdated, 60000);

@@ -140,6 +140,7 @@ The stores' wide logos don't suit the headers: 401 Games' "GAMES" is white (invi
    - Build the identity (`name, setName, setCode, collectorNumber, finish, treatments, image`) with the helpers in `lib/normalize.js`.
    - Return `{ cash, credit, retail }` from `search`, and `{ price, stock }` from `searchRetail`, each with `url`: the card's page at the store in that mode (or its search, via `searchLink`).
    - Export `links: { buy, sell }`, the store's search pages with `{q}` for the card name.
+   - Export `online: true` if it's a mail-order store for the user (not one they can visit): its column goes on the right, with the other online stores.
    - Export `logo: 'logos/<id>.png'`: its square mark (favicon or app icon), cropped and saved in `public/logos/` (see [Logos](#logos--publiclogos)). Check it on both themes; add `logoDark` if it doesn't read on the dark one. Without a logo, the header shows the store's name.
 4. Register it in `stores/index.js`.
 5. Check matching with a few cards that have many printings ("Sol Ring", "Lightning Bolt"). Rows that show only the new store usually mean a set-code or set-name mismatch; add an alias.

@@ -17,6 +17,7 @@ these, the user decides on a new card; update the line then.
 
 - **Copying a card name shows "✓ Copied" right after the name, not a toast.** #25's toast was dropped at review (#32).
 - **Store columns are headed by the store's square logo, not its name**, so columns stay narrow as stores are added. The name is in the tooltip, and stays everywhere else, print sheets included (#82).
+- **In-person stores come first, online ones (401 Games, Hobbiesville) on the right**, by default. Columns are reordered by **dragging a header**, not with ← / → buttons, and the order is **one for both Selling and Buying** (unlike left-out stores, which each view keeps its own). The "Selling to \<store\>" sections and the move bar follow the column order (#83).
 
 ## Stores
 
