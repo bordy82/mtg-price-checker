@@ -18,7 +18,8 @@ const $ = (sel) => document.querySelector(sel);
 const listText = (items) => new Intl.ListFormat('en', { type: 'conjunction' }).format(items);
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const money = (n) => (n === null || n === undefined ? '—' : `$${n.toFixed(2)}`);
+// To the cent, except a real half cent (Cartes Sportives Rive-Sud's bulk offer is $0.005, #80).
+const money = (n) => (n === null || n === undefined ? '—' : `$${n.toFixed(Math.round(n * 1000) % 10 ? 3 : 2)}`);
 const otherValue = () => (state.sellValue === 'credit' ? 'cash' : 'credit');
 const finishGroup = (f) => (f === 'nonfoil' || f === 'etched' ? f : 'foil');
 const NORMAL = 'Normal';
@@ -158,14 +159,15 @@ async function api(path, options = {}) {
 // ---- shared rendering helpers ----
 
 // Card images at the size they're shown (#41). Stores link their full-size scans (Face to Face's are 1469 px wide,
-// ~100 KB each); Shopify's CDN, used by every store but Game Keeper, resizes on `width=`. Other URLs stay as they are.
-// The saved `image` keeps the full URL; only what the page loads is resized.
+// ~100 KB each); Shopify's CDN resizes on `width=`, at cdn.shopify.com or under a shop's own /cdn/shop/ (Cartes
+// Sportives Rive-Sud's). Other URLs stay as they are. The saved `image` keeps the full URL; only what the page
+// loads is resized.
 const THUMB_PX = 80; // 34 px thumbnail, sharp on 2× screens
 const PREVIEW_PX = 480; // 230 px hover preview (#card-preview)
 function sized(url, px) {
   try {
     const u = new URL(url, location.href);
-    if (u.hostname !== 'cdn.shopify.com') return url;
+    if (u.hostname !== 'cdn.shopify.com' && !u.pathname.startsWith('/cdn/shop/')) return url;
     u.searchParams.set('width', px);
     return u.href;
   } catch {
@@ -711,7 +713,7 @@ function printWishlist(name) {
   const { perStore, missing } = listTotals(items);
   const anyMissing = stores.some((s) => missing[s.id]);
   printSheet(name ?? cfg().listTitle, items, `
-    <table>
+    <table class="ps-compare">
       <thead><tr><th>Card</th>${stores.map((s) => `<th class="num">${esc(s.label)}</th>`).join('')}</tr></thead>
       <tbody>${rows.join('')}</tbody>
       <tfoot>

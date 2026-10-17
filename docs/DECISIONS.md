@@ -24,3 +24,5 @@ these, the user decides on a new card; update the line then.
 - **Game Keeper's credit is cash + 30%**, though its French policy page says 50%. The user confirmed 30% before issues were tracked.
 - **No getting around a store's bot check**: no headless or stealth browsers, challenge solving, copied `cf_clearance` cookies, or rotating User-Agents or IPs. A store behind one (Imaginaire, behind Cloudflare) gets an adapter only through a public endpoint or the store's own feed (#1).
 - **Outside services other than the stores are called by the server, never by the page** (Scryfall's card names, #52).
+- **A buylist with only TCGplayer's set names gets its set codes from Scryfall**, by TCGplayer product id (Cartes Sportives Rive-Sud), not from a table of set-name aliases or from the store's own shop titles. Without Scryfall, it falls back to set names (#80).
+- **Retail stock is exact per variant.** When Cartes Sportives Rive-Sud's search page only gives a product's total (several variants in stock), its product page is read, rather than showing the total or "in stock" without a number (#80).

@@ -38,7 +38,8 @@ Full details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); per-store endp
 Update those docs when you change behavior they describe.
 
 - `server.js`: Express 5. `searchAll(query, { mode })` calls every store in parallel and merges the results. Results are cached 10 min per mode and query; results with a failed store aren't cached. `/api/refresh` keeps a failed store's last known prices. Errors go back as JSON.
-- `stores/*.js`: one adapter per store, exporting `{ id, label, logo, logoDark?, online?, creditNote, links, search, searchRetail }`. `logo` is a file in `public/logos/` (column headers, #82). `online: true` (mail-order stores) puts the column on the right by default (#83). `search` returns buylist offers (`cash`, `credit`); `searchRetail` returns retail listings (`price`, `stock`). They share an identity part: `name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments, image`. Requests go through `lib/http.js` (`getJson`, `getText`: User-Agent, 15 s timeout, retries).
+- `stores/*.js`: one adapter per store, exporting `{ id, label, logo, logoDark?, online?, creditNote, links, search, searchRetail }`. `logo` is a file in `public/logos/` (column headers, #82). `online: true` (mail-order stores) puts the column on the right by default (#83). `search` returns buylist offers (`cash`, `credit`); `searchRetail` returns retail listings (`price`, `stock`). They share an identity part: `name, setName, setCode, altSetCodes?, collectorNumber, finish, treatments, image`. Requests go through `lib/http.js` (`getJson`, `getText`, `postJson`: User-Agent, 15 s timeout, retries).
+- `lib/scryfall.js`: every Scryfall request, spaced 100 ms apart (name suggestions; set codes by TCGplayer product id for Cartes Sportives Rive-Sud). The server calls Scryfall, never the page.
 - `lib/match.js`: `mergeOffers(offers, query, mode)` makes one row per printing.
   - Pass 1 uses strict keys (`printingKeys`).
   - Pass 2 handles offers without a collector number using `looseKey`. They merge only when exactly one row matches; if several do, the exact special-foil label can narrow it down.
@@ -76,6 +77,11 @@ Update those docs when you change behavior they describe.
   - No collector number unless the name has one (`Sol Ring (0408)`).
   - Retail stock = the `max` of the quantity select.
   - The server often drops connections or returns 502 (plain curl too), so its requests make 4 attempts with backoff (`getText(url, { retries: 3 })`). Keep request volume low.
+- **Cartes Sportives Rive-Sud** (`stores/cartessportivesrivesud.js`; TCGplayer product names, ids and set names on both sites):
+  - Buylist: SortSwift's API, store id `cartessportivessivesud` (sic). `search` (one request, `limit=500`) has no offers and no set codes; offers come from `POST get-price/bulk`, 10 printings per request, 3 at a time, as their site does.
+  - The site shows **cash and credit** (60% / 65% of TCGplayer market); read both (`NMFinalCash`, `NMFinalCredit`). Cards at $1 and under: $0.005 ("Bulk"). Offer 0 at 5 copies in stock ("Not buying").
+  - Set codes and numbers come from Scryfall by TCGplayer product id (`printsByTcgplayerId`); special-foil products Scryfall doesn't link take their TCGplayer group's set. Scryfall down = set names only, not a failed store.
+  - Retail: Shopify search pages (`product_type:"Magic: The Gathering Singles" AND title:"…"`, results section only). The "In stock, N units" label is the product's total over its variants; with several in stock, the product page has each variant's count.
 
 ## Conventions
 
