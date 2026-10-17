@@ -114,6 +114,23 @@ Gotchas:
 
 ---
 
+## Logos — `public/logos/`
+
+Column headers show each store's square mark (#82), saved here rather than linked from the stores' sites. Each is cropped to its visible part (transparent margins removed, so marks of different shapes look the same size) and scaled to 64 px high, sharp at the 24 px it's shown on 2× screens. Sources (2026-10-17):
+
+| File | Source |
+|---|---|
+| `f2f.png` | the FF shield, `https://facetofacegames.com/cdn/shop/files/Icon_Black_1.png` (the site's favicon) |
+| `f2f-dark.png` | the same shield in white, cropped from `https://facetofacegames.com/cdn/shop/files/wide-f2f-EN-white-logo.png`: the black shield's lower half is dark grey, lost on the dark theme |
+| `ce.png` | the roundel, `https://cards.collect-edition.com/cdn/shop/files/logo_carre.png` (the site's favicon) |
+| `401.png` | the green dice, their Storepass logo: `https://d2k4q26owzy373.cloudfront.net/700x700/games/userfiles/1732742151707-401_DICE_VERT_COL_GREY.png` |
+| `gk.png` | the red wings, `https://bluedefault.crystalcommerce.com/themes/clients/gamekeeperonline/assets/img/favicon.ico` (a 64×64 PNG; the wings in `logo-2017.png` are 5× wider than tall) |
+| `hv.png` | the "H", `https://www.hobbiesville.com/cdn/shop/files/h_logo_hobbiesville_large_5540fe46-d1c3-4c52-a8a9-f5cb1102c438.png` |
+
+The stores' wide logos don't suit the headers: 401 Games' "GAMES" is white (invisible on the light theme) and Game Keeper's text is dark. Shopify image URLs take `?width=`.
+
+---
+
 ## Adding a store
 
 1. Open the store's buylist or search page with the browser's network tab open and look for a JSON request. If there isn't one, plan on parsing the HTML.
@@ -123,6 +140,7 @@ Gotchas:
    - Build the identity (`name, setName, setCode, collectorNumber, finish, treatments, image`) with the helpers in `lib/normalize.js`.
    - Return `{ cash, credit, retail }` from `search`, and `{ price, stock }` from `searchRetail`, each with `url`: the card's page at the store in that mode (or its search, via `searchLink`).
    - Export `links: { buy, sell }`, the store's search pages with `{q}` for the card name.
+   - Export `logo: 'logos/<id>.png'`: its square mark (favicon or app icon), cropped and saved in `public/logos/` (see [Logos](#logos--publiclogos)). Check it on both themes; add `logoDark` if it doesn't read on the dark one. Without a logo, the header shows the store's name.
 4. Register it in `stores/index.js`.
 5. Check matching with a few cards that have many printings ("Sol Ring", "Lightning Bolt"). Rows that show only the new store usually mean a set-code or set-name mismatch; add an alias.
 6. Add a section to this file.

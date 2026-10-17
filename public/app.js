@@ -262,14 +262,19 @@ function priceCell(card, storeId, best, chosen) {
 }
 
 // Clicking a store's header leaves it out of the comparison (its column dims); clicking again brings it back.
+// Headers show the store's logo (#82), narrower than its name; the name is the image's alt text and starts the tooltip.
+// A store without a logo shows its name; `logoDark` replaces the logo on the dark theme.
 function storeHeaders(chosen) {
   return state.stores
     .map((s) => {
       const included = isIncluded(s.id);
       const hint = included ? 'Click to leave out of the comparison' : 'Click to compare again';
-      const title = state.view === 'sell' ? `${s.creditNote} · ${hint}` : hint;
+      const title = [s.label, state.view === 'sell' ? s.creditNote : '', hint].filter(Boolean).join(' · ');
+      const img = `<img class="store-logo" src="${esc(s.logo)}" alt="${esc(s.label)}">`;
+      const dark = s.logoDark ? `<source srcset="${esc(s.logoDark)}" media="(prefers-color-scheme: dark)">` : '';
+      const content = !s.logo ? esc(s.label) : dark ? `<picture>${dark}${img}</picture>` : img;
       return `<th class="${colClass(s.id, chosen)}"><button class="store-toggle" data-store="${esc(s.id)}"
-        aria-pressed="${included}" title="${esc(title)}">${esc(s.label)}</button></th>`;
+        aria-pressed="${included}" title="${esc(title)}">${content}</button></th>`;
     })
     .join('');
 }

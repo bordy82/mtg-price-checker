@@ -117,6 +117,11 @@ table.grid { width: 100%; border-collapse: collapse; margin-top: 12px; }
   font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer;
 }
 .grid th .store-toggle:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+/* Store logos (#82): square marks, narrower than the names, so the columns are as wide as their prices. */
+.grid th.num:has(.store-logo) { text-align: center; }
+.grid th .store-toggle:has(.store-logo) { display: inline-flex; vertical-align: middle; padding-bottom: 3px; border-bottom: 2px solid transparent; }
+.store-logo { display: block; height: 24px; width: auto; max-width: 36px; object-fit: contain; }
+.grid th .store-toggle:hover .store-logo { transform: scale(1.12); }
 .grid td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .grid tbody tr:hover { background: color-mix(in srgb, var(--chip) 50%, transparent); }
 .grid th.num, .grid td.num { text-align: right; white-space: nowrap; }
@@ -181,9 +186,11 @@ a.price-link:hover .main { text-decoration: underline; text-underline-offset: 3p
 .change.worse { color: color-mix(in srgb, var(--danger) 70%, var(--muted)); }
 /* A store left out of the comparison: its column stays readable but dimmed. */
 .grid .excluded { opacity: .4; }
+.grid th.excluded .store-logo { filter: grayscale(1); }
 /* In a "Selling to <store>" list, that store's column is tinted (distinct from green "best" and dimmed "excluded"). */
 .grid .chosen { background: color-mix(in srgb, var(--accent) 9%, transparent); }
 .grid th.chosen { color: var(--accent); }
+.grid th.chosen .store-toggle:has(.store-logo) { border-bottom-color: var(--accent); }
 
 /* A list save failed (#40): shown under the list header until a save succeeds. */
 .save-error {

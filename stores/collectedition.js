@@ -66,6 +66,7 @@ async function searchRetail(name) {
 module.exports = {
   id: 'ce',
   label: 'Collect-Edition',
+  logo: 'logos/ce.png',
   creditNote: 'site price = credit',
   links: LINKS,
   search,

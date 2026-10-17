@@ -74,6 +74,7 @@ async function searchRetail(name) {
 module.exports = {
   id: 'hv',
   label: 'Hobbiesville',
+  logo: 'logos/hv.png',
   creditNote: 'site price = credit',
   links: LINKS,
   search,

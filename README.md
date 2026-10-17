@@ -32,7 +32,7 @@ Supported stores:
 - The best store per card is highlighted:
   - selling: the highest offer
   - buying: the cheapest copy **in stock** (sold-out prices are shown greyed and never win)
-- Click a store's column header to leave it out of the comparison (e.g. online-only stores when selling in person): its column turns grey and the best price moves to the next store. Click again to bring it back. Selling and Buying each remember their own choice.
+- Store columns are headed by the store's logo (hover it for the name). Click a store's logo to leave it out of the comparison (e.g. online-only stores when selling in person): its column turns grey and the best price moves to the next store. Click again to bring it back. Selling and Buying each remember their own choice.
 - Totals for "everything at one store", with how many cards each store doesn't buy or doesn't have in stock.
 - Near Mint, English cards only.
 
@@ -73,6 +73,7 @@ lib/
   normalize.js         names, finishes, versions, set names, matching keys
   storepass.js         shared fetching for Storepass-hosted buylists
 public/              the web page (vanilla HTML/CSS/JS)
+  logos/               each store's logo, for the column headers
 docs/                architecture, per-store reference, product decisions
 ```
 
@@ -99,7 +100,7 @@ Each store adapter exports:
 
 1. Find the store's search data, ideally a JSON request in the browser's network tab, otherwise the HTML.
 2. Check what the site displays: some show **cash**, others show **credit** directly.
-3. Create `stores/<store>.js` exporting `{ id, label, creditNote, links, search, searchRetail }`, returning the offer shapes above (each with a `url` to the card at the store).
+3. Create `stores/<store>.js` exporting `{ id, label, logo, creditNote, links, search, searchRetail }`, returning the offer shapes above (each with a `url` to the card at the store).
 4. Add it to `stores/index.js`. The UI adds a column automatically.
 
 The full checklist is in [docs/STORES.md](docs/STORES.md#adding-a-store).

@@ -96,6 +96,7 @@ async function searchRetail(name) {
 module.exports = {
   id: '401',
   label: '401 Games',
+  logo: 'logos/401.png',
   creditNote: 'cash + 30%',
   links: LINKS,
   search,
