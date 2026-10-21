@@ -9,6 +9,7 @@ const state = {
   moveTo: { sell: null, buy: null }, // sub-list picked in the selection bar's "Move to", per view ('' = new wishlist
   // list, 'new:<store id>' = a new "Selling to" list, TO_MAIN = back to the main list)
   selected: new Set(), // keys of the ticked cards in the current view's lists (#89); not saved
+  anchor: null, // key of the last tick box clicked: a Shift-click ticks or unticks the rows from it (#91)
   refreshing: new Map(), // price refreshes running: `${view}:${sub-list id}` ('' = the whole list) -> { done, total }
   search: { seq: 0, abort: null }, // the latest search (#37): only its response may render
   removed: null, // the last removed card, for Undo (#43): { view, item, index, timer }
@@ -784,12 +785,12 @@ function renderList() {
   renderSubLists(list);
   renderPaste(); // "In list" marks and prices follow the list, the view and the switches
   if (main.length) {
-    const { thead, tbody, tfoot } = listTable(main);
+    const { thead, tbody, tfoot } = listTable(main, { title: c.listTitle });
     table.querySelector('thead').innerHTML = thead;
     table.querySelector('tbody').innerHTML = tbody;
     table.querySelector('tfoot').innerHTML = tfoot;
   }
-  renderSelBar(); // after the tables: its totals line up with their columns
+  renderPicks(); // after the tables: the header boxes, and the selection bar's totals line up with their columns
 }
 
 // List order: by card name; printings of the same card by set, number, finish. Ticking a card doesn't change it.
@@ -807,11 +808,12 @@ function compareListItems(a, b) {
 }
 
 // One list table: a row per card, sorted, then per-store totals.
-// Each row starts with a tick box (#89); a ticked row is tinted in place (`picked`).
+// Each row starts with a tick box (#89); a ticked row is tinted in place (`picked`). The header's box ticks or
+// unticks the whole table (#91; its state is set by renderPicks). `title` names the table for it.
 // `chosen` highlights one store's column (the store a "Selling to" list is for).
 // `qty` adds a quantity stepper inside the Card cell (store lists only); totals then count every copy,
 // while the price cells (and the green "best") stay per copy.
-function listTable(items, { chosen = null, qty = false } = {}) {
+function listTable(items, { title, chosen = null, qty = false } = {}) {
   const c = cfg();
   const rows = [...items].sort(compareListItems);
   const html = rows.map((item) => {
@@ -829,7 +831,8 @@ function listTable(items, { chosen = null, qty = false } = {}) {
   });
   return {
     // The thumbnail column's cells (here and in totalRows) carry `thumb` too, so they hide with it on phones (#38).
-    thead: `<tr><th></th><th class="thumb"></th><th class="card-col">Card</th>${storeHeaders(chosen)}${orderResetCell()}</tr>`,
+    thead: `<tr><th class="pick"><label><input type="checkbox" data-pick-all aria-label="${esc(`Select every card in ${title}`)}"></label></th>` +
+      `<th class="thumb"></th><th class="card-col">Card</th>${storeHeaders(chosen)}${orderResetCell()}</tr>`,
     tbody: html.join(''),
     tfoot: totalRows(c.totalLabel(), listTotals(items, { perCopy: qty }), '', chosen),
   };
@@ -850,6 +853,23 @@ function qtyStepper(item) {
 
 // The ticked cards (#89), in the current view's lists.
 const selectedItems = () => currentList().filter((item) => state.selected.has(item.key));
+
+// Shows `state.selected` without re-rendering the lists, so nothing on the page moves and the focus stays: each tick
+// box and its row's tint (#89), each table's header box (#91: ticked when all its cards are, indeterminate when only
+// some are), then the selection bar.
+function renderPicks() {
+  for (const all of $('#list-panel').querySelectorAll('[data-pick-all]')) {
+    const boxes = [...all.closest('table').querySelectorAll('tbody [data-pick]')];
+    for (const box of boxes) {
+      box.checked = state.selected.has(box.dataset.pick);
+      box.closest('tr').classList.toggle('picked', box.checked);
+    }
+    const n = boxes.filter((box) => box.checked).length;
+    all.checked = n > 0 && n === boxes.length;
+    all.indeterminate = n > 0 && n < boxes.length;
+  }
+  renderSelBar();
+}
 
 // The selection bar (#89), shown while cards are ticked, at the bottom of the list panel (sticky, see style.css):
 // "N selected", Move to [list] [Move], Clear selection, then the ticked cards' total per store under the store
@@ -924,7 +944,7 @@ function renderSubLists(list) {
   $('#sub-lists').innerHTML = cfg().groups().map((g) => {
     const items = list.filter((item) => groupOf(item) === g.id);
     if (!items.length) return '';
-    const { thead, tbody, tfoot } = listTable(items, { chosen: g.chosen, qty: g.qty });
+    const { thead, tbody, tfoot } = listTable(items, { title: g.title, chosen: g.chosen, qty: g.qty });
     const refreshing = state.refreshing.get(`${state.view}:${g.id}`);
     // Wishlist lists (#33) and "Selling to" lists (#69) refresh on their own and show their own prices' age.
     const refresh = g.refresh
@@ -1243,6 +1263,7 @@ function setView(view) {
   if (view === state.view) return;
   state.view = view;
   state.selected.clear(); // the same printing can be in both lists; each view starts with nothing ticked (#89)
+  state.anchor = null;
   dropUndo();
   try { localStorage.setItem(VIEW_KEY, view); } catch {}
   const query = $('#search-input').value.trim();
@@ -1496,15 +1517,47 @@ $('#paste-rows').addEventListener('change', (e) => {
   renderPaste();
 });
 
-// Ticking a card (#89) only tints its row and updates the selection bar: no re-render, so nothing on the page moves
+// Ticking a card (#89) only updates `state.selected` and renderPicks(): no re-render, so nothing on the page moves
 // (and the box keeps the keyboard focus).
+// - Shift-click (or Shift-Space) ticks or unticks every row from the last box clicked (`state.anchor`) to this one,
+//   in display order, as the clicked box now is (#91). Only within one table: in another table it starts a new range.
+// - A header box ticks every card of its table, or unticks them all when they're all ticked (#91).
+// A tick box's click comes just before its change and says whether Shift was held. Shift-mousedown in a tick cell
+// would also select the page's text up to there, so it's cancelled.
+let pickShift = false;
+$('#list-panel').addEventListener('mousedown', (e) => {
+  if (e.shiftKey && e.target.closest('.pick')) e.preventDefault();
+});
+$('#list-panel').addEventListener('click', (e) => {
+  if (e.target.matches('[data-pick]')) pickShift = e.shiftKey;
+});
 $('#list-panel').addEventListener('change', (e) => {
+  const all = e.target.closest('[data-pick-all]');
   const box = e.target.closest('[data-pick]');
-  if (!box) return;
-  if (box.checked) state.selected.add(box.dataset.pick);
-  else state.selected.delete(box.dataset.pick);
-  box.closest('tr').classList.toggle('picked', box.checked);
-  renderSelBar();
+  if (!all && !box) return;
+  const boxes = [...e.target.closest('table').querySelectorAll('tbody [data-pick]')];
+  let keys = boxes.map((b) => b.dataset.pick);
+  if (box) {
+    const from = pickShift ? keys.indexOf(state.anchor) : -1;
+    const to = boxes.indexOf(box);
+    keys = from < 0 ? [box.dataset.pick] : keys.slice(Math.min(from, to), Math.max(from, to) + 1);
+    state.anchor = box.dataset.pick;
+  }
+  for (const key of keys) {
+    if (e.target.checked) state.selected.add(key);
+    else state.selected.delete(key);
+  }
+  renderPicks();
+});
+
+// Esc clears the selection (#91), unless it already does something else: in a text field (in the search field it
+// closes the suggestions or clears the search, #52 / #71; in the new list's name or Add a list's text, nothing), on a
+// dropdown (it closes it), or with the confirmation window open (it cancels).
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.isComposing || e.defaultPrevented || !state.selected.size) return;
+  if (e.target.closest?.('input:not([type="checkbox"]), textarea, select') || $('#confirm').open) return;
+  state.selected.clear();
+  renderPicks();
 });
 
 // Quantity / remove in the main list and in every sub-list. Rows are found by key: cards are sorted and split across
