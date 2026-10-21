@@ -46,6 +46,10 @@ const MODES = {
     backText: null, // a store starting to buy a card shows no change (#51)
     totalLabel: () => `Total ${state.sellValue} if everything goes to…`,
     missingLabel: (n) => `${n} not bought`,
+    // A printing's best offer in a pasted list's review (#53): "$23.40 credit", or noneText.
+    bestText: (p) => `${money(p[state.sellValue])} ${state.sellValue}`,
+    noneText: 'not bought',
+    notFoundText: 'No store buys a card by this name',
     starTitle: 'Star: actually selling this',
     // A store's first list is "Selling to <store>", its next ones "(2)", "(3)"… (`i` = position among its lists, #72).
     storeListTitle: (store, i = 0) => `Selling to ${store}${i ? ` (${i + 1})` : ''}`,
@@ -110,6 +114,9 @@ const MODES = {
     backText: 'back in stock', // a card that wasn't available at the last refresh and is now (#51)
     totalLabel: () => 'Total cost if bought at…',
     missingLabel: (n) => `${n} unavailable`,
+    bestText: (p) => money(p.price),
+    noneText: 'out of stock',
+    notFoundText: 'No store sells a card by this name',
     starTitle: 'Star: actually buying this',
     // Sub-lists (#27): wishlist lists the user names ("Check Lands"), by `group`, alphabetically.
     // A list exists while it has cards.
@@ -413,7 +420,7 @@ function renderResults() {
   table.querySelector('tbody').innerHTML = rows.length
     ? rows.map((p) => {
         const best = bestStore(p.prices);
-        const inList = currentList().find((i) => p.keys.includes(i.key));
+        const inList = inCurrentList(p);
         return `<tr>
           ${thumb(p.image)}
           <td class="card-col"><div class="card-name">${nameButton(p.name)}</div>${printingLine(p)}</td>
@@ -426,6 +433,270 @@ function renderResults() {
       }).join('')
     : `<tr><td colspan="${4 + state.stores.length}" class="muted empty">No printing matches these filters.</td></tr>`;
   table.hidden = false;
+}
+
+// ---- add a pasted list (#53) ----
+// "Add a list" opens #paste under the search field, for lines as deck sites export them (Moxfield, Archidekt, MTG
+// Arena): `1 Mystical Tutor (EMA) 62`, `1 Summon: Knights of Round (FIN) 36 *F*`, or just a name. Find searches each
+// distinct front name in the current view through /api/search (and its cache), PASTE_PARALLEL at a time as Refresh
+// does, with "Finding N / M…" on the button. The review then has one row per pasted line:
+// - Matched: the set code + number + finish name exactly one printing (or a bare name has a single one), picked;
+// - Choose: several printings fit, or the pasted one isn't among them; a dropdown of the card's printings, each with
+//   its best price;
+// - Not found;
+// - In list: the picked printing is already in the current list, so it isn't added again.
+// "Add N cards" adds the picked printings to the main list (sell list or wishlist), once each. That list has no
+// quantities (#24), so a line's quantity is dropped, with a note.
+
+const PASTE_PARALLEL = 3;
+const paste = {
+  seq: 0, // the latest Find: only its answers render
+  abort: null,
+  view: null, // the view the lines were found in
+  lines: [], // parsePastedLine() + the outcome of the line's search (matchPasted)
+  progress: null, // { done, total } while finding
+  failed: new Set(), // stores that couldn't be reached for some name
+  message: '', // "Added 3 cards to My cards to sell."
+  html: '', // the review as last drawn: an unchanged one isn't redrawn, so an open dropdown stays open
+};
+
+// Keep in sync with normName() and normCollector() in lib/normalize.js.
+const normName = (name) => String(name || '').toLowerCase().replace(/[^a-z0-9/]+/g, ' ').trim();
+const normCollector = (cn) => String(cn ?? '').trim().toLowerCase().replace(/★/g, '').replace(/^0+(?=\w)/, '');
+
+// Lines that aren't cards: comments, and the section titles of deck exports ("Deck", "Sideboard:").
+const NOT_A_CARD = /^(\/\/|#)|^(deck|sideboard|commander|companion|maybeboard|considering|tokens?)\s*:?$/i;
+
+// `2x Name (SET) 123 *F*` -> { text, qty, name, set, number, finish }, or null for a blank line or one that isn't a
+// card. `*F*` is foil, `*E*` etched, neither non-foil. Other `*X*` markers and Archidekt's [Category] / ^Tag^ are
+// ignored.
+function parsePastedLine(text) {
+  let s = text.trim();
+  if (!s || NOT_A_CARD.test(s)) return null;
+  let qty = 1;
+  const q = s.match(/^(\d+)\s*x?\s+/i);
+  if (q) {
+    qty = Math.max(1, Number(q[1]));
+    s = s.slice(q[0].length);
+  }
+  const finish = /\*E\*/i.test(s) ? 'etched' : /\*F\*/i.test(s) ? 'foil' : 'nonfoil';
+  s = s.replace(/\*\w+\*|\[[^\]]*\]|\^[^^]*\^/g, ' ').replace(/\s+/g, ' ').trim();
+  const m = s.match(/^(.+?) \(([a-z0-9]{2,8})\)(?: (\S+))?$/i);
+  const [name, set, number] = m ? [m[1], m[2], m[3] || ''] : [s, '', ''];
+  return { text: text.trim(), qty, name, set, number, finish };
+}
+
+// Whether a printing has the pasted set code (any of its codes), number (when given) and finish group, read from
+// its keys: `<set>|<number>|<finish group>`.
+function fitsPasted(p, line) {
+  const set = line.set.toLowerCase();
+  const number = normCollector(line.number);
+  const group = finishGroup(line.finish);
+  return p.keys.some((k) => {
+    const [s, n, g] = k.split('|');
+    return s === set && (!number || n === number) && g === group;
+  });
+}
+
+// "FIN #36 foil"
+const pastedPrinting = (line) =>
+  [line.set.toUpperCase(), line.number && `#${line.number}`, line.finish !== 'nonfoil' && line.finish].filter(Boolean).join(' ');
+
+// The names a printing goes by, to compare with a pasted name: each name of a two-name card ("A // B", or "A - B" for
+// a Secret Lair's own name before the card's), without a version in brackets ("Sol Ring (Avengers)").
+const cardNames = (name) => String(name || '').split(/ \/\/ | - /).map((n) => normName(n.replace(/\([^)]*\)\s*$/, '')));
+
+// What a line's search found: `rows`, the card's printings for its dropdown (those fitting the pasted set, number and
+// finish first), and `auto`, the one printing those name, picked from the start. The set and number are looked for in
+// every printing found, whatever its name. A name no printing goes by offers every card the search found.
+function matchPasted(line, printings) {
+  const front = normName(frontName(line.name));
+  const same = printings.filter((p) => cardNames(p.name).includes(front));
+  const rows = same.length ? same : printings;
+  const fits = line.set ? printings.filter((p) => fitsPasted(p, line)) : [];
+  const auto = fits.length === 1 ? fits[0].key : !line.set && same.length === 1 ? same[0].key : '';
+  const notes = [];
+  if (rows.length && !same.length) notes.push(`No card named exactly "${line.name}"`);
+  if (rows.length && line.set && !fits.length) notes.push(`No ${pastedPrinting(line)} found`);
+  return { rows: [...fits, ...rows.filter((p) => !fits.includes(p))], auto, pick: auto, note: notes.join(' · '), done: true };
+}
+
+async function findPasted() {
+  paste.abort?.abort();
+  const controller = new AbortController();
+  const seq = ++paste.seq;
+  const view = state.view;
+  const lines = $('#paste-text').value.split('\n').map(parsePastedLine).filter(Boolean);
+  Object.assign(paste, { abort: controller, view, lines, failed: new Set(), html: '', progress: null, message: '' });
+  if (!lines.length) {
+    paste.message = 'Paste one card per line first.';
+    renderPaste();
+    return;
+  }
+  // One search per front name, for every line that has it.
+  const byName = new Map();
+  for (const line of lines) {
+    const name = normName(frontName(line.name));
+    byName.set(name, [...(byName.get(name) || []), line]);
+  }
+  const groups = [...byName.values()];
+  paste.progress = { done: 0, total: groups.length };
+  renderPaste();
+
+  async function find(group) {
+    const q = frontName(group[0].name);
+    try {
+      const data = q.length < 2 ? { printings: [] } // too short to search: not found
+        : await api(`/api/search?mode=${view}&q=${encodeURIComponent(q)}`, { signal: controller.signal });
+      if (seq !== paste.seq) return;
+      Object.keys(data.errors || {}).forEach((id) => paste.failed.add(id));
+      for (const line of group) Object.assign(line, matchPasted(line, data.printings));
+    } catch (err) {
+      if (seq !== paste.seq) return; // aborted: a newer Find, Close or a tab switch
+      // fetch() itself fails (TypeError) when the server is down.
+      const error = err instanceof TypeError ? "the server isn't reachable" : err.message;
+      for (const line of group) Object.assign(line, { error, rows: [], done: true });
+    }
+  }
+  let next = 0;
+  async function worker() {
+    while (next < groups.length && seq === paste.seq) {
+      await find(groups[next++]);
+      if (seq !== paste.seq) return;
+      paste.progress.done++;
+      renderPaste();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(PASTE_PARALLEL, groups.length) }, worker));
+  if (seq !== paste.seq) return;
+  paste.progress = null;
+  renderPaste();
+}
+
+// The picked printings that aren't in the current list yet, once each.
+function pastePicks() {
+  const picks = new Map();
+  for (const line of paste.lines) {
+    const p = line.rows?.find((r) => r.key === line.pick);
+    if (p && !picks.has(p.key) && !inCurrentList(p)) picks.set(p.key, p);
+  }
+  return [...picks.values()];
+}
+
+// A line's state: its tag's text and class.
+function pastedState(line) {
+  if (!line.done) return { text: '…', cls: 'wait' };
+  if (line.error) return { text: "Couldn't search", cls: 'bad' };
+  if (!line.rows.length) return { text: 'Not found', cls: 'bad' };
+  const picked = line.rows.find((r) => r.key === line.pick);
+  if (picked && inCurrentList(picked)) return { text: 'In list', cls: 'in' };
+  if (picked) return { text: picked.key === line.auto ? 'Matched' : 'Picked', cls: 'ok' };
+  return line.auto ? { text: 'Skipped', cls: 'in' } : { text: 'Choose', cls: 'choose' };
+}
+
+// "FINAL FANTASY · FIN #350 · Borderless — $23.40 credit": a printing in a line's dropdown, with its best price.
+// `named` puts the printing's name first ("Summoner's Rift - Command Tower", "Sol Ring (Avengers)").
+function pastedOption(p, named) {
+  const c = cfg();
+  const best = bestStore(p.prices);
+  const number = [p.setCode && String(p.setCode).toUpperCase(), p.collectorNumber && `#${p.collectorNumber}`].filter(Boolean).join(' ');
+  const finish = p.finish === 'nonfoil' ? '' : p.finish.replace(/\b\w/g, (ch) => ch.toUpperCase());
+  const printing = [named && p.name, [p.setName, number].filter(Boolean).join(' · '), finish, ...p.treatments];
+  return `${printing.filter(Boolean).join(' · ')} — ${best ? c.bestText(p.prices[best]) : c.noneText}`;
+}
+
+function pastedRow(line, i) {
+  const tag = pastedState(line);
+  const picked = line.rows?.find((r) => r.key === line.pick);
+  // A printing named otherwise than the pasted line shows its name.
+  const named = (p) => normName(frontName(p.name)) !== normName(frontName(line.name));
+  let cell = '';
+  if (line.error) cell = `<span class="paste-note">${esc(line.error)}</span>`;
+  else if (line.done && !line.rows.length) cell = `<span class="paste-note">${esc(cfg().notFoundText)}</span>`;
+  else if (tag.text === 'In list') cell = esc(pastedOption(picked, named(picked)));
+  else if (line.done) {
+    const options = line.rows.map((p) => {
+      const inList = inCurrentList(p);
+      const attrs = `${p.key === line.pick ? ' selected' : ''}${inList ? ' disabled' : ''}`;
+      return `<option value="${esc(p.key)}"${attrs}>${esc(pastedOption(p, named(p)))}${inList ? ' · in list' : ''}</option>`;
+    });
+    cell = `<select data-line="${i}" aria-label="${esc(`Printing for ${line.text}`)}">
+      <option value="">${line.auto ? "Don't add" : 'Choose a printing…'}</option>${options.join('')}</select>`;
+  }
+  const note = line.note ? `<span class="paste-note">${esc(line.note)}</span>` : '';
+  const qty = line.qty > 1 ? `<span class="paste-note">×${line.qty} not kept</span>` : '';
+  return `<tr class="paste-${tag.cls}">
+    <td class="paste-line">${esc(line.text)}${qty}</td>
+    <td><span class="tag paste-state">${esc(tag.text)}</span></td>
+    <td class="paste-pick">${cell}${note}</td>
+  </tr>`;
+}
+
+// "12 lines: 9 matched, 2 to choose, 1 not found · couldn't reach Game Keeper"
+function pasteStatus(lines) {
+  if (paste.progress || !lines.length) return paste.message;
+  const counts = new Map();
+  for (const line of lines) counts.set(pastedState(line).text, (counts.get(pastedState(line).text) || 0) + 1);
+  const parts = [['Matched', 'matched'], ['Picked', 'picked'], ['Choose', 'to choose'], ['Skipped', 'skipped'],
+    ['In list', 'already in the list'], ['Not found', 'not found'], ["Couldn't search", "couldn't be searched"]]
+    .filter(([text]) => counts.has(text)).map(([text, label]) => `${counts.get(text)} ${label}`);
+  const failed = [...paste.failed].map((id) => state.stores.find((s) => s.id === id)?.label || id);
+  return [paste.message, `${lines.length} line${lines.length === 1 ? '' : 's'}: ${parts.join(', ')}`]
+    .filter(Boolean).join(' ') + (failed.length ? ` · couldn't reach ${listText(failed)}` : '');
+}
+
+function renderPaste() {
+  if ($('#paste').hidden) return;
+  const c = cfg();
+  $('#paste-hint').innerHTML = 'One card per line, as deck sites export them: <code>1 Mystical Tutor (EMA) 62</code>, ' +
+    `<code>*F*</code> for a foil, <code>*E*</code> for an etched one. The cards go to <b>${esc(c.listTitle)}</b>, ` +
+    'without quantities.';
+  const { progress } = paste;
+  $('#paste-find').disabled = Boolean(progress);
+  $('#paste-find').textContent = progress ? `Finding ${progress.done} / ${progress.total}…` : 'Find';
+  // Found in the other view: hidden (a tab switch finds them again).
+  const lines = paste.view === state.view ? paste.lines : [];
+  $('#paste-status').textContent = pasteStatus(lines);
+  $('#paste-review').hidden = !lines.length;
+  if (!lines.length) return;
+  const html = lines.map(pastedRow).join('');
+  if (html !== paste.html) {
+    const rows = $('#paste-rows');
+    const focused = rows.contains(document.activeElement) ? document.activeElement.dataset.line : null;
+    rows.innerHTML = html;
+    paste.html = html;
+    if (focused) rows.querySelector(`[data-line="${focused}"]`)?.focus();
+  }
+  const n = pastePicks().length;
+  $('#paste-add').textContent = `Add ${n} card${n === 1 ? '' : 's'}`;
+  $('#paste-add').disabled = !n || Boolean(progress);
+  $('#paste-to').textContent = `to ${c.listTitle}`;
+}
+
+function openPaste() {
+  $('#paste').hidden = false;
+  $('#paste-open').setAttribute('aria-expanded', 'true');
+  renderPaste();
+  $('#paste-text').focus();
+}
+
+// Stops a Find and drops the review; the pasted text stays for next time.
+function closePaste() {
+  paste.abort?.abort();
+  paste.seq++;
+  Object.assign(paste, { abort: null, lines: [], progress: null, message: '', html: '' });
+  $('#paste').hidden = true;
+  $('#paste-open').setAttribute('aria-expanded', 'false');
+}
+
+function addPasted() {
+  const picks = pastePicks();
+  if (!picks.length || paste.progress || paste.view !== state.view) return;
+  currentList().push(...picks.map(listItem));
+  paste.message = `Added ${picks.length} card${picks.length === 1 ? '' : 's'} to ${cfg().listTitle}.`;
+  saveList();
+  renderList(); // and the review: the added lines are now "In list"
+  if (state.results.length) renderResults();
 }
 
 // ---- saved lists ----
@@ -462,12 +733,19 @@ function renderSaveError() {
   $('#save-error-text').textContent = error ? `Couldn't save: ${error}. Your last change isn't stored.` : '';
 }
 
+// A search result row (one printing) as a list item, with its prices.
+function listItem(p) {
+  const { key, name, setCode, setName, collectorNumber, finish, treatments, image, prices } = p;
+  return { key, name, setCode, setName, collectorNumber, finish, treatments, image, prices, updatedAt: Date.now() };
+}
+
+// Whether a search result row's printing is in the current list.
+const inCurrentList = (p) => currentList().some((i) => p.keys.includes(i.key));
+
 function addToList(key) {
   const p = state.results.find((r) => r.key === key);
-  const list = currentList();
-  if (!p || list.some((i) => p.keys.includes(i.key))) return;
-  const { key: k, name, setCode, setName, collectorNumber, finish, treatments, image, prices } = p;
-  list.push({ key: k, name, setCode, setName, collectorNumber, finish, treatments, image, prices, updatedAt: Date.now() });
+  if (!p || inCurrentList(p)) return;
+  currentList().push(listItem(p));
   saveList();
   renderList();
   renderResults();
@@ -494,6 +772,7 @@ function renderList() {
   renderSaveError();
   renderMoveBar(main);
   renderSubLists(list);
+  renderPaste(); // "In list" marks and prices follow the list, the view and the switches
   if (!main.length) return;
 
   const { thead, tbody, tfoot } = listTable(main, { subtotal: true });
@@ -926,6 +1205,8 @@ function setView(view) {
   applyView();
   // Show the same card in the new mode.
   if (hadResults && query.length >= 2) search(query);
+  // And the pasted list (#53): its printings and prices are the other view's.
+  if (!$('#paste').hidden && paste.lines.length) findPasted();
 }
 
 // ---- card preview ----
@@ -1150,6 +1431,23 @@ $('#results').addEventListener('click', (e) => {
   const b = e.target.closest('[data-add]');
   if (!b) return;
   addToList(b.dataset.add);
+});
+
+// Add a list (#53). ⌘ / Ctrl + Enter in the text box is Find.
+$('#paste-open').addEventListener('click', () => ($('#paste').hidden ? openPaste() : closePaste()));
+$('#paste-close').addEventListener('click', closePaste);
+$('#paste-find').addEventListener('click', findPasted);
+$('#paste-add').addEventListener('click', addPasted);
+$('#paste-text').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey)) return;
+  e.preventDefault();
+  if (!paste.progress) findPasted();
+});
+$('#paste-rows').addEventListener('change', (e) => {
+  const line = paste.lines[e.target.dataset.line];
+  if (!line) return;
+  line.pick = e.target.value;
+  renderPaste();
 });
 
 // Star / quantity / remove in the main list and in every sub-list. Rows are found by key: starred cards are
