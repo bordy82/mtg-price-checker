@@ -91,6 +91,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 28px 60px; display: grid
 .paste-bad .paste-state { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 .paste-bad .paste-line { color: var(--danger); }
 .paste-in .paste-state, .paste-wait .paste-state { color: var(--muted); }
+/* On a phone, each line of the review stacks: its text above its state and dropdown. */
+@media (max-width: 700px) {
+  .paste-table tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .paste-table td { padding: 0; border: 0; }
+  .paste-table .paste-line { grid-column: 1 / -1; width: auto; }
+  .paste-pick select { min-width: 0; }
+}
 button {
   border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer;
   background: var(--accent); color: var(--accent-ink); font-weight: 600;
@@ -312,9 +319,4 @@ dialog.confirm p { margin: 0 0 18px; color: var(--muted); }
   .topbar { padding: 14px 16px; flex-direction: column; align-items: flex-start; }
   main { padding: 16px; }
   .thumb { display: none; }
-  /* A pasted list's review (#53): each line stacks, its text above its state and dropdown. */
-  .paste-table tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-  .paste-table td { padding: 0; border: 0; }
-  .paste-table .paste-line { grid-column: 1 / -1; width: auto; }
-  .paste-pick select { min-width: 0; }
 }
