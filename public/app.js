@@ -408,14 +408,15 @@ function renderResults() {
   $('#search-status').textContent =
     (rows.length === total ? `${total} printings found` : `Showing ${rows.length} of ${total} printings`) +
     (state.failedNote || '');
-  table.querySelector('thead').innerHTML = `<tr><th></th><th>Card</th><th>Version</th>${storeHeaders()}${orderResetCell()}</tr>`;
+  table.querySelector('thead').innerHTML =
+    `<tr><th class="thumb"></th><th class="card-col">Card</th><th>Version</th>${storeHeaders()}${orderResetCell()}</tr>`;
   table.querySelector('tbody').innerHTML = rows.length
     ? rows.map((p) => {
         const best = bestStore(p.prices);
         const inList = currentList().find((i) => p.keys.includes(i.key));
         return `<tr>
           ${thumb(p.image)}
-          <td><div class="card-name">${nameButton(p.name)}</div>${printingLine(p)}</td>
+          <td class="card-col"><div class="card-name">${nameButton(p.name)}</div>${printingLine(p)}</td>
           <td>${printingTags(p) || '<span class="muted">Normal</span>'}</td>
           ${state.stores.map((s) => priceCell(p, s.id, best)).join('')}
           <td class="add-cell">
@@ -529,7 +530,7 @@ function listTable(items, { subtotal = false, chosen = null, qty = false } = {})
     return `<tr>
       <td><button class="icon star${item.starred ? ' on' : ''}" data-star="${key}" title="${esc(c.starTitle)}" aria-pressed="${Boolean(item.starred)}">${item.starred ? '★' : '☆'}</button></td>
       ${thumb(item.image)}
-      <td><div class="card-name">${nameButton(item.name)} ${printingTags(item)}</div>${qty ? qtyStepper(item) : ''}${printingLine(item)}</td>
+      <td class="card-col"><div class="card-name">${nameButton(item.name)} ${printingTags(item)}</div>${qty ? qtyStepper(item) : ''}${printingLine(item)}</td>
       ${state.stores.map((s) => priceCell(item, s.id, best, chosen)).join('')}
       <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
     </tr>`;
@@ -543,7 +544,8 @@ function listTable(items, { subtotal = false, chosen = null, qty = false } = {})
       totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred, { perCopy: qty }), 'starred'));
   }
   return {
-    thead: `<tr><th></th><th></th><th>Card</th>${storeHeaders(chosen)}${orderResetCell()}</tr>`,
+    // The thumbnail column's cells (here and in totalRows) carry `thumb` too, so they hide with it on phones (#38).
+    thead: `<tr><th></th><th class="thumb"></th><th class="card-col">Card</th>${storeHeaders(chosen)}${orderResetCell()}</tr>`,
     tbody: html.join(''),
     tfoot: totalRows(c.totalLabel(), listTotals(items, { perCopy: qty }), '', chosen),
   };
@@ -642,12 +644,12 @@ function totalRows(label, { perStore, missing }, cls = '', chosen = null) {
   const { missingLabel } = cfg();
   return `
     <tr class="total ${cls}">
-      <td></td><td></td><td>${esc(label)}</td>
+      <td></td><td class="thumb"></td><td class="card-col">${esc(label)}</td>
       ${state.stores.map((s) => `<td class="${colClass(s.id, chosen)}">${money(perStore[s.id])}</td>`).join('')}
       <td></td>
     </tr>
     <tr class="total sub ${cls}">
-      <td></td><td></td><td></td>
+      <td></td><td class="thumb"></td><td class="card-col"></td>
       ${state.stores.map((s) => `<td class="${colClass(s.id, chosen)}">${missing[s.id] ? esc(missingLabel(missing[s.id])) : ''}</td>`).join('')}
       <td></td>
     </tr>`;
