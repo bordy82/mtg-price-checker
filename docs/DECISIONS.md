@@ -14,6 +14,8 @@ these, the user decides on a new card; update the line then.
 - **Select, then act, instead of a star.** Ticking a card only marks it: it isn't pinned to the top and no subtotal rows appear, so nothing on the page moves. A floating bar at the bottom of the window acts on the ticked cards. The selection isn't saved (#89).
 - **The selection's per-store totals are in that bar**, under the store columns, instead of a "Starred" subtotal in the table. Per-store totals only, like the footer: still no "each card at its best store" total (#89).
 - **Cards go back to the main list through Move to** ("My cards to sell" / "My wishlist"), not by un-starring (#89).
+- **Removing the selection asks no confirmation**: Undo (8 s) is the safeguard, as for a row's ✕ (#90).
+- **The undo message shows at the bottom of the window**, with the selection bar (just above it while cards are ticked), not under the top bar: an action taken from the bottom bar answers there, and a row's ✕ uses the same place (#90).
 - **Clear list is only for sub-lists** ("Selling to \<store\>" lists, wishlist lists), never the main sell list or "My wishlist". Cleared cards leave for good, with a confirmation and no undo (#63, #77).
 - **Wishlist sheets print every store** still in the comparison (price, stock, the cheapest in-stock one starred), not one store's prices like a "Selling to" sheet (#55).
 

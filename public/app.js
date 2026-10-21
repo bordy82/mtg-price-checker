@@ -11,7 +11,7 @@ const state = {
   selected: new Set(), // keys of the ticked cards in the current view's lists (#89); not saved
   refreshing: new Map(), // price refreshes running: `${view}:${sub-list id}` ('' = the whole list) -> { done, total }
   search: { seq: 0, abort: null }, // the latest search (#37): only its response may render
-  removed: null, // the last removed card, for Undo (#43): { view, item, index, timer }
+  removed: null, // the last removal, for Undo (#43, #90): { view, items: [{ item, index, picked }], timer }
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -852,8 +852,8 @@ function qtyStepper(item) {
 const selectedItems = () => currentList().filter((item) => state.selected.has(item.key));
 
 // The selection bar (#89), shown while cards are ticked, at the bottom of the list panel (sticky, see style.css):
-// "N selected", Move to [list] [Move], Clear selection, then the ticked cards' total per store under the store
-// columns. Move to's options come from `moveOptions()`, in labelled groups or not: Selling offers each store's
+// "N selected", Move to [list] [Move], Remove (#90), Clear selection, then the ticked cards' total per store under the
+// store columns. Move to's options come from `moveOptions()`, in labelled groups or not: Selling offers each store's
 // lists, then "New list" for that store (#72); Buying offers the wishlist lists, then "New list…" (value '') with a
 // name field. When some ticked cards are in a sub-list, the main list comes first (TO_MAIN).
 function renderSelBar() {
@@ -1521,26 +1521,37 @@ $('#list-panel').addEventListener('click', (e) => {
     return;
   }
   const b = e.target.closest('[data-remove]');
-  if (!b) return;
-  const idx = list.findIndex((i) => i.key === b.dataset.remove);
-  if (idx === -1) return;
-  const [item] = list.splice(idx, 1);
-  showUndo(item, idx);
-  saveList();
-  renderList();
-  if (state.results.length) renderResults();
+  if (b) removeCards([b.dataset.remove]);
 });
 
-// ---- undo a removal (#43) ----
-// One level: the last removed card, for 8 s or until the next removal or a tab switch. Undo puts back the same
-// object, so its sub-list (sellTo / sellList / group), quantity and prices come back with it.
+// ---- remove cards, and undo it (#43) ----
+// A row's ✕ removes its card; the selection bar's Remove removes every ticked card at once (#90), sub-lists' too.
+// No confirmation: Undo is the safeguard. A single ✕ is a batch of one.
+// One level: the last removal, for 8 s or until the next removal or a tab switch. Undo puts back the same objects,
+// so their sub-list (sellTo / sellList / group), quantity and prices come back with them, and ticks again the cards
+// that were ticked. Keyboard focus that was on the button moves to Undo, then back to the bar or the card's ✕.
 
 const UNDO_MS = 8000;
 
-function showUndo(item, index) {
+function removeCards(keys) {
+  const list = currentList();
+  const wanted = new Set(keys);
+  // In list order, so Undo can put each back at its index.
+  const items = list.flatMap((item, index) => (wanted.has(item.key) ? [{ item, index, picked: state.selected.has(item.key) }] : []));
+  if (!items.length) return;
+  const focused = $('#list-panel').contains(document.activeElement);
+  for (const { index } of [...items].reverse()) list.splice(index, 1);
+  showUndo(items);
+  saveList();
+  renderList();
+  if (state.results.length) renderResults();
+  if (focused) $('#undo-btn').focus();
+}
+
+function showUndo(items) {
   clearTimeout(state.removed?.timer);
   const timer = setTimeout(dropUndo, UNDO_MS);
-  state.removed = { view: state.view, item, index, timer };
+  state.removed = { view: state.view, items, timer };
   renderUndo();
 }
 
@@ -1554,19 +1565,28 @@ function renderUndo() {
   const r = state.removed;
   const shown = Boolean(r && r.view === state.view);
   $('#undo-bar').hidden = !shown;
-  $('#undo-text').textContent = shown ? `Removed ${r.item.name}` : '';
+  $('#undo-text').textContent = shown ? `Removed ${r.items.length === 1 ? r.items[0].item.name : `${r.items.length} cards`}` : '';
 }
 
 function undoRemove() {
   const r = state.removed;
   if (!r) return;
+  const focused = document.activeElement === $('#undo-btn');
   dropUndo();
   const list = state.lists[r.view];
-  // Added again from the search results meanwhile: keep that one.
-  if (!list.some((i) => i.key === r.item.key)) list.splice(Math.min(r.index, list.length), 0, r.item);
+  // In list order: each card goes back at its index. One added again from the search results meanwhile stays as it is.
+  for (const { item, index, picked } of r.items) {
+    if (list.some((i) => i.key === item.key)) continue;
+    list.splice(Math.min(index, list.length), 0, item);
+    if (picked) state.selected.add(item.key);
+  }
   saveList(r.view);
   renderList();
   if (state.results.length) renderResults();
+  if (focused) {
+    const row = $('#list-panel').querySelector(`[data-remove="${CSS.escape(r.items[0].item.key)}"]`);
+    ($('#sel-bar').hidden ? row : $('#sel-remove'))?.focus();
+  }
 }
 
 $('#undo-btn').addEventListener('click', undoRemove);
@@ -1608,12 +1628,6 @@ async function clearSubList(listId) {
   renderList();
   if (state.results.length) renderResults();
 }
-
-// The undo bar sticks just under the sticky top bar, whose height changes when it wraps on narrow screens.
-const setTopbarHeight = () =>
-  document.documentElement.style.setProperty('--topbar-h', `${$('.topbar').offsetHeight}px`);
-setTopbarHeight();
-window.addEventListener('resize', setTopbarHeight);
 
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
@@ -1670,6 +1684,8 @@ $('#move-btn').addEventListener('click', () => {
   saveList();
   renderList();
 });
+
+$('#sel-remove').addEventListener('click', () => removeCards(selectedItems().map((item) => item.key)));
 
 $('#sel-clear').addEventListener('click', () => {
   state.selected.clear();
