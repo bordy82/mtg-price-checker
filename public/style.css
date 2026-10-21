@@ -160,12 +160,14 @@ body.col-drag .store-tip { display: none; }
 .grid tr.total td { border-bottom: 0; font-weight: 600; padding-top: 12px; }
 .grid tr.total.sub td { font-weight: 400; color: var(--muted); padding-top: 2px; font-size: 13px; }
 .grid tbody tr.total:hover { background: none; }
-/* Tick boxes (#89): the whole cell is the click target. Faint until ticked or hovered; `light dark` draws the box
-   in the page's theme. A ticked row is tinted in place. */
-.grid td.pick { padding: 0; width: 40px; }
+/* Tick boxes (#89), and each table's select-all box in its header (#91): the whole cell is the click target. Faint
+   until ticked (or partly, for a header box) or hovered; `light dark` draws the box in the page's theme. A ticked row
+   is tinted in place. */
+.grid td.pick, .grid th.pick { padding: 0; width: 40px; }
 .pick label { display: flex; align-items: center; justify-content: center; width: 40px; height: 44px; cursor: pointer; }
 .pick input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); color-scheme: light dark; cursor: pointer; opacity: .5; }
-.pick input:checked, .pick input:focus-visible, .grid tbody tr:hover .pick input { opacity: 1; }
+.pick input:checked, .pick input:indeterminate, .pick input:focus-visible, .grid tbody tr:hover .pick input,
+.grid th.pick:hover input { opacity: 1; }
 .grid tbody tr.picked, .grid tbody tr.picked:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 .thumb { width: 34px; }
