@@ -31,7 +31,27 @@
           <ul id="suggestions" class="suggestions" role="listbox" aria-label="Card names" hidden></ul>
         </div>
         <button type="submit">Search</button>
+        <button type="button" id="paste-open" class="ghost" aria-expanded="false" aria-controls="paste">Add a list</button>
       </form>
+      <div id="paste" class="paste" hidden>
+        <label for="paste-text" id="paste-hint" class="muted"></label>
+        <textarea id="paste-text" rows="6" spellcheck="false" autocomplete="off"
+          placeholder="1 Mystical Tutor (EMA) 62&#10;1 Summon: Knights of Round (FIN) 36 *F*&#10;Aettir and Priwen"></textarea>
+        <div class="paste-actions">
+          <button type="button" id="paste-find">Find</button>
+          <button type="button" id="paste-close" class="ghost">Close</button>
+          <span id="paste-status" class="muted" role="status"></span>
+        </div>
+        <div id="paste-review" hidden>
+          <div class="table-wrap">
+            <table class="grid paste-table"><tbody id="paste-rows"></tbody></table>
+          </div>
+          <div class="paste-actions">
+            <button type="button" id="paste-add">Add</button>
+            <span id="paste-to" class="muted"></span>
+          </div>
+        </div>
+      </div>
       <div id="filters" class="filters" hidden></div>
       <div id="search-status" class="status"></div>
       <div class="table-wrap">
