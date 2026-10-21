@@ -75,10 +75,6 @@
         <span id="save-error-text"></span>
         <button id="save-retry" class="ghost small">Retry</button>
       </p>
-      <p id="undo-bar" class="undo-bar" role="status" hidden>
-        <span id="undo-text"></span>
-        <button id="undo-btn" class="ghost small">Undo</button>
-      </p>
       <div class="table-wrap">
         <table id="list" class="grid">
           <thead></thead>
@@ -88,17 +84,24 @@
       </div>
       <p id="list-empty" class="muted empty">Search for a card above and click <b>Add</b> on the version you own.</p>
       <div id="sub-lists"></div>
-      <div id="sel-bar" class="sel-bar" role="region" aria-label="Selected cards" hidden>
-        <div class="sel-actions">
-          <span id="sel-count" class="sel-count"></span>
-          <label for="move-to" class="muted">Move to</label>
-          <select id="move-to"></select>
-          <input id="move-name" type="text" placeholder="List name, e.g. Check Lands" aria-label="New list name" maxlength="60" autocomplete="off" hidden>
-          <button id="move-btn">Move</button>
-          <button id="sel-clear" class="ghost sel-clear">✕ Clear selection</button>
-        </div>
-        <div class="table-wrap">
-          <table class="grid sel-totals"><colgroup></colgroup><tbody id="sel-totals"></tbody></table>
+      <div class="dock">
+        <p id="undo-bar" class="undo-bar" role="status" hidden>
+          <span id="undo-text"></span>
+          <button id="undo-btn" class="ghost small">Undo</button>
+        </p>
+        <div id="sel-bar" class="sel-bar" role="region" aria-label="Selected cards" hidden>
+          <div class="sel-actions">
+            <span id="sel-count" class="sel-count"></span>
+            <label for="move-to" class="muted">Move to</label>
+            <select id="move-to"></select>
+            <input id="move-name" type="text" placeholder="List name, e.g. Check Lands" aria-label="New list name" maxlength="60" autocomplete="off" hidden>
+            <button id="move-btn">Move</button>
+            <button id="sel-remove" class="ghost">Remove</button>
+            <button id="sel-clear" class="ghost sel-clear">✕ Clear selection</button>
+          </div>
+          <div class="table-wrap">
+            <table class="grid sel-totals"><colgroup></colgroup><tbody id="sel-totals"></tbody></table>
+          </div>
         </div>
       </div>
     </section>
