@@ -72,32 +72,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px 28px 60px; display: grid
 }
 .suggestions li { padding: 6px 12px; cursor: pointer; }
 .suggestions li.active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-/* Add a list (#53): the pasted lines under the search field, then their review. */
-.paste { display: grid; gap: 8px; margin-top: 12px; }
-.paste code { font-size: 12px; background: var(--chip); padding: 1px 5px; border-radius: 4px; }
-.paste textarea {
-  width: 100%; min-height: 7.5em; resize: vertical; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
-  background: var(--bg); color: var(--ink); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-.paste textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-.paste-actions { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
-.paste-table { margin: 0 0 10px; }
-.paste-table td { vertical-align: top; }
-.paste-line { width: 36%; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
-.paste-pick select { width: 100%; min-width: 16em; }
-.paste-note { display: block; margin-top: 3px; color: var(--muted); font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
-.paste-ok .paste-state { background: var(--best); color: var(--best-ink); }
-.paste-choose .paste-state { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
-.paste-bad .paste-state { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
-.paste-bad .paste-line { color: var(--danger); }
-.paste-in .paste-state, .paste-wait .paste-state { color: var(--muted); }
-/* On a phone, each line of the review stacks: its text above its state and dropdown. */
-@media (max-width: 700px) {
-  .paste-table tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-  .paste-table td { padding: 0; border: 0; }
-  .paste-table .paste-line { grid-column: 1 / -1; width: auto; }
-  .paste-pick select { min-width: 0; }
-}
 button {
   border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer;
   background: var(--accent); color: var(--accent-ink); font-weight: 600;
@@ -314,6 +288,34 @@ dialog.confirm p { margin: 0 0 18px; color: var(--muted); }
 
 .add-cell { white-space: nowrap; text-align: right; }
 .added { color: var(--best-ink); font-size: 13px; font-weight: 600; }
+
+/* Add a list (#53): the pasted lines under the search field, then their review. After the .grid rules, which the
+   review's table overrides. */
+.paste { display: grid; gap: 8px; margin-top: 12px; }
+.paste code { font-size: 12px; background: var(--chip); padding: 1px 5px; border-radius: 4px; }
+.paste textarea {
+  width: 100%; min-height: 7.5em; resize: vertical; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.paste textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.paste-actions { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+table.paste-table { margin: 0 0 10px; }
+.paste-table td { vertical-align: top; }
+.paste-line { width: 36%; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.paste-pick select { width: 100%; min-width: 16em; }
+.paste-note { display: block; margin-top: 3px; color: var(--muted); font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+.paste-ok .paste-state { background: var(--best); color: var(--best-ink); }
+.paste-choose .paste-state { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.paste-bad .paste-state { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.paste-bad .paste-line { color: var(--danger); }
+.paste-in .paste-state, .paste-wait .paste-state { color: var(--muted); }
+/* On a phone, each line of the review stacks: its text above its state and dropdown. */
+@media (max-width: 700px) {
+  .paste-table tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .paste-table td { padding: 0; border: 0; }
+  .paste-table .paste-line { grid-column: 1 / -1; width: auto; }
+  .paste-pick select { min-width: 0; }
+}
 
 @media (max-width: 700px) {
   .topbar { padding: 14px 16px; flex-direction: column; align-items: flex-start; }
