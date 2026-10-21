@@ -83,8 +83,6 @@ button.ghost { background: transparent; color: var(--ink); border: 1px solid var
 button.small { padding: 5px 10px; font-size: 13px; }
 button.icon { background: transparent; color: var(--muted); padding: 4px 8px; font-size: 16px; }
 button.icon:hover { color: var(--accent); }
-button.star { padding: 4px 2px 4px 6px; font-size: 18px; line-height: 1; }
-button.star.on { color: var(--accent); }
 button.icon:disabled:hover { color: var(--muted); }
 
 .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -162,8 +160,13 @@ body.col-drag .store-tip { display: none; }
 .grid tr.total td { border-bottom: 0; font-weight: 600; padding-top: 12px; }
 .grid tr.total.sub td { font-weight: 400; color: var(--muted); padding-top: 2px; font-size: 13px; }
 .grid tbody tr.total:hover { background: none; }
-/* Starred subtotal: a line under it separates the starred cards from the rest. */
-.grid tr.total.starred.sub td { border-bottom: 2px solid var(--muted); padding-bottom: 12px; }
+/* Tick boxes (#89): the whole cell is the click target. Faint until ticked or hovered; `light dark` draws the box
+   in the page's theme. A ticked row is tinted in place. */
+.grid td.pick { padding: 0; width: 40px; }
+.pick label { display: flex; align-items: center; justify-content: center; width: 40px; height: 44px; cursor: pointer; }
+.pick input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); color-scheme: light dark; cursor: pointer; opacity: .5; }
+.pick input:checked, .pick input:focus-visible, .grid tbody tr:hover .pick input { opacity: 1; }
+.grid tbody tr.picked, .grid tbody tr.picked:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 .thumb { width: 34px; }
 .thumb img { width: 34px; border-radius: 3px; display: block; }
@@ -232,11 +235,28 @@ a.price-link:hover .main { text-decoration: underline; text-underline-offset: 3p
   position: sticky; top: calc(var(--topbar-h, 70px) + 8px); z-index: 4;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 14px;
 }
-.move-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; font-size: 14px; }
-.move-bar select, .move-bar input, .paste-pick select {
+/* The selection bar (#89). Sticky at the bottom of the window while the list panel is in view; its own place is the
+   end of the panel, so showing it moves nothing above, and scrolled to the end it sits under the last list instead of
+   covering it. It reaches into the panel's side padding (18 px = its 1 px border + 17 px), so its content lines up
+   with the tables', and its totals with their store columns (alignSelBar). */
+.sel-bar {
+  position: sticky; bottom: 16px; z-index: 4; margin: 18px -18px 0; padding: 10px 17px 2px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .22);
+}
+.sel-actions { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
+.sel-count { font-weight: 600; min-width: 6.5em; }
+.sel-clear { margin-left: auto; }
+.sel-actions select, .sel-actions input, .paste-pick select {
   border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--panel); color: var(--ink); font: inherit;
 }
-.move-bar input { width: 16em; }
+.sel-actions select, .sel-actions input { padding: 8px; }
+.sel-actions input { width: 16em; }
+/* A long list name can't push the bar wider than the panel on a phone (#38); its own phone layout is #92. */
+.sel-actions select, .sel-actions input { max-width: 100%; min-width: 0; }
+table.grid.sel-totals { table-layout: fixed; margin-top: 8px; border-top: 1px solid var(--line); }
+.sel-totals td { border-bottom: 0; padding: 6px 10px; }
+.grid.sel-totals tbody tr:hover { background: none; }
+.sel-totals .sel-label { color: var(--muted); font-size: 13px; }
 /* Sub-lists under the main list: "Selling to <store>" sections and wishlist lists. */
 .sub-list { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
 .sub-list h3 { font-size: 15px; margin: 0; }
@@ -330,5 +350,6 @@ table.paste-table { margin: 0 0 10px; }
     position: sticky; left: 0; z-index: 1; background: var(--panel); box-shadow: inset -1px 0 0 var(--line);
   }
   .grid tbody tr:hover .card-col { background: color-mix(in srgb, var(--chip) 50%, var(--panel)); }
+  .grid tbody tr.picked .card-col, .grid tbody tr.picked:hover .card-col { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
   .grid tbody tr.total:hover .card-col { background: var(--panel); }
 }

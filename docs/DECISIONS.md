@@ -11,6 +11,9 @@ these, the user decides on a new card; update the line then.
 - **Wishlist lists have no quantity** (#27).
 - **A pasted list (Add a list) goes into the main list, without quantities**, not straight into a "Selling to \<store\>" list with its quantities (#53, the card's default).
 - **Several "Selling to \<store\>" lists per store are numbered** ("Selling to Face to Face (2)"), not dated or named, and a list has no "waiting" or "sent" tag: the user picks the store's new list when moving cards (#72).
+- **Select, then act, instead of a star.** Ticking a card only marks it: it isn't pinned to the top and no subtotal rows appear, so nothing on the page moves. A floating bar at the bottom of the window acts on the ticked cards. The selection isn't saved (#89).
+- **The selection's per-store totals are in that bar**, under the store columns, instead of a "Starred" subtotal in the table. Per-store totals only, like the footer: still no "each card at its best store" total (#89).
+- **Cards go back to the main list through Move to** ("My cards to sell" / "My wishlist"), not by un-starring (#89).
 - **Clear list is only for sub-lists** ("Selling to \<store\>" lists, wishlist lists), never the main sell list or "My wishlist". Cleared cards leave for good, with a confirmation and no undo (#63, #77).
 - **Wishlist sheets print every store** still in the comparison (price, stock, the cheapest in-stock one starred), not one store's prices like a "Selling to" sheet (#55).
 

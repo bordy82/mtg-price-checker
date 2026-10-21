@@ -6,8 +6,9 @@ const state = {
   filters: { finish: 'all', treatments: new Set() },
   lists: { sell: [], buy: [] },
   excluded: { sell: new Set(), buy: new Set() }, // stores left out of the comparison, per view
-  moveTo: { sell: null, buy: null }, // sub-list picked in "Move starred cards to", per view ('' = new wishlist list,
-  // 'new:<store id>' = a new "Selling to" list)
+  moveTo: { sell: null, buy: null }, // sub-list picked in the selection bar's "Move to", per view ('' = new wishlist
+  // list, 'new:<store id>' = a new "Selling to" list, TO_MAIN = back to the main list)
+  selected: new Set(), // keys of the ticked cards in the current view's lists (#89); not saved
   refreshing: new Map(), // price refreshes running: `${view}:${sub-list id}` ('' = the whole list) -> { done, total }
   search: { seq: 0, abort: null }, // the latest search (#37): only its response may render
   removed: null, // the last removed card, for Undo (#43): { view, item, index, timer }
@@ -31,6 +32,9 @@ const ORDER_KEY = 'mtg-buylist:storeOrder';
 // A list's id is `<store id>:<number>`.
 const sellListNo = (item) => Math.max(1, Math.floor(item.sellList) || 1);
 const sellListId = (storeId, n) => `${storeId}:${n}`;
+// The selection bar's "Move to" value for the main list (#89). Not a sub-list id: those are `<store id>:<n>` and
+// `new:<store id>` when selling. A wishlist list could have this name, so the move checks real lists first.
+const TO_MAIN = 'main:';
 
 // Everything that differs between selling and buying. Prices are { cash, credit } or { price, stock }.
 const MODES = {
@@ -50,7 +54,9 @@ const MODES = {
     bestText: (p) => `${money(p[state.sellValue])} ${state.sellValue}`,
     noneText: 'not bought',
     notFoundText: 'No store buys a card by this name',
-    starTitle: 'Star: actually selling this',
+    // The selection bar's totals (#89): "Total credit if the 3 go to…"; the highest total is the best.
+    selTotalLabel: (n) => `Total ${state.sellValue} if ${n === 1 ? 'it goes' : `the ${n} go`} to…`,
+    totalEligible: (sum) => sum > 0,
     // A store's first list is "Selling to <store>", its next ones "(2)", "(3)"… (`i` = position among its lists, #72).
     storeListTitle: (store, i = 0) => `Selling to ${store}${i ? ` (${i + 1})` : ''}`,
     // Sub-lists (#17): "Selling to <store>" lists, by `sellTo` and `sellList` (#72). An unknown store id counts as
@@ -72,7 +78,7 @@ const MODES = {
         chosen: s.id, qty: true, refresh: true, print: true, clear: true,
       }));
     }),
-    // Move bar: each store's lists, then a new one, named as the section it will make
+    // Move to: each store's lists, then a new one, named as the section it will make
     // ("Selling to Face to Face (2) · new list"). A closed select shows only the picked option, not its group, so
     // every option names its store.
     moveOptions: () => {
@@ -117,7 +123,9 @@ const MODES = {
     bestText: (p) => money(p.price),
     noneText: 'out of stock',
     notFoundText: 'No store sells a card by this name',
-    starTitle: 'Star: actually buying this',
+    // The cheapest store that has every ticked card in stock is the best.
+    selTotalLabel: (n) => `Total cost if ${n === 1 ? 'it is' : `the ${n} are`} bought at…`,
+    totalEligible: (sum, missing) => sum > 0 && !missing,
     // Sub-lists (#27): wishlist lists the user names ("Check Lands"), by `group`, alphabetically.
     // A list exists while it has cards.
     groupOf: (item) => (typeof item.group === 'string' && item.group.trim() ? item.group : null),
@@ -757,6 +765,9 @@ const groupOf = (item) => cfg().groupOf(item);
 function renderList() {
   const c = cfg();
   const list = currentList();
+  // Cards that left the list (removed, cleared) leave the selection.
+  const keys = new Set(list.map((item) => item.key));
+  for (const key of state.selected) if (!keys.has(key)) state.selected.delete(key);
   const main = list.filter((item) => !groupOf(item));
   const table = $('#list');
   $('#list-title').textContent = c.listTitle;
@@ -770,58 +781,52 @@ function renderList() {
   $('#list-count').textContent = main.length ? `${main.length} card${main.length === 1 ? '' : 's'}` : '';
   renderUpdated();
   renderSaveError();
-  renderMoveBar(main);
   renderSubLists(list);
   renderPaste(); // "In list" marks and prices follow the list, the view and the switches
-  if (!main.length) return;
-
-  const { thead, tbody, tfoot } = listTable(main, { subtotal: true });
-  table.querySelector('thead').innerHTML = thead;
-  table.querySelector('tbody').innerHTML = tbody;
-  table.querySelector('tfoot').innerHTML = tfoot;
+  if (main.length) {
+    const { thead, tbody, tfoot } = listTable(main);
+    table.querySelector('thead').innerHTML = thead;
+    table.querySelector('tbody').innerHTML = tbody;
+    table.querySelector('tfoot').innerHTML = tfoot;
+  }
+  renderSelBar(); // after the tables: its totals line up with their columns
 }
 
-// List order: starred cards first, then by card name; printings of the same card by set, number, finish.
+// List order: by card name; printings of the same card by set, number, finish. Ticking a card doesn't change it.
 // Display only: the saved list keeps the order cards were added.
 const byText = (a, b) => String(a ?? '').localeCompare(String(b ?? ''), undefined, { sensitivity: 'base', numeric: true });
 const FINISH_ORDER = ['nonfoil', 'foil', 'etched'];
 const finishRank = (f) => (FINISH_ORDER.includes(f) ? FINISH_ORDER.indexOf(f) : FINISH_ORDER.length);
 
 function compareListItems(a, b) {
-  return Boolean(b.starred) - Boolean(a.starred)
-    || byText(a.name, b.name)
+  return byText(a.name, b.name)
     || byText(a.setName || a.setCode, b.setName || b.setCode)
     || byText(a.collectorNumber, b.collectorNumber)
     || finishRank(a.finish) - finishRank(b.finish)
     || byText(a.finish, b.finish);
 }
 
-// One list table: starred cards first, an optional starred subtotal, and per-store totals.
+// One list table: a row per card, sorted, then per-store totals.
+// Each row starts with a tick box (#89); a ticked row is tinted in place (`picked`).
 // `chosen` highlights one store's column (the store a "Selling to" list is for).
 // `qty` adds a quantity stepper inside the Card cell (store lists only); totals then count every copy,
 // while the price cells (and the green "best") stay per copy.
-function listTable(items, { subtotal = false, chosen = null, qty = false } = {}) {
+function listTable(items, { chosen = null, qty = false } = {}) {
   const c = cfg();
   const rows = [...items].sort(compareListItems);
   const html = rows.map((item) => {
     const best = bestStore(item.prices);
     const key = esc(item.key);
-    return `<tr>
-      <td><button class="icon star${item.starred ? ' on' : ''}" data-star="${key}" title="${esc(c.starTitle)}" aria-pressed="${Boolean(item.starred)}">${item.starred ? '★' : '☆'}</button></td>
+    const picked = state.selected.has(item.key);
+    const label = `Select ${item.name} (${String(item.setCode).toUpperCase()} #${item.collectorNumber})`;
+    return `<tr${picked ? ' class="picked"' : ''}>
+      <td class="pick"><label><input type="checkbox" data-pick="${key}" aria-label="${esc(label)}"${picked ? ' checked' : ''}></label></td>
       ${thumb(item.image)}
       <td class="card-col"><div class="card-name">${nameButton(item.name)} ${printingTags(item)}</div>${qty ? qtyStepper(item) : ''}${printingLine(item)}</td>
       ${state.stores.map((s) => priceCell(item, s.id, best, chosen)).join('')}
       <td class="num"><button class="icon" data-remove="${key}" title="Remove">✕</button></td>
     </tr>`;
   });
-
-  // Subtotal of the starred cards, under the last one. Only when it differs from the full total.
-  const starred = rows.filter((item) => item.starred);
-  if (subtotal && starred.length && starred.length < rows.length) {
-    const label = c.totalLabel();
-    html.splice(starred.length, 0,
-      totalRows(`Starred: ${label[0].toLowerCase()}${label.slice(1)}`, listTotals(starred, { perCopy: qty }), 'starred'));
-  }
   return {
     // The thumbnail column's cells (here and in totalRows) carry `thumb` too, so they hide with it on phones (#38).
     thead: `<tr><th></th><th class="thumb"></th><th class="card-col">Card</th>${storeHeaders(chosen)}${orderResetCell()}</tr>`,
@@ -843,21 +848,28 @@ function qtyStepper(item) {
   </span>`;
 }
 
-// "Move starred cards to [sub-list]": shown when the main list has starred cards. Options come from `moveOptions()`,
-// in labelled groups or not: Selling offers each store's lists, then "New list" for that store (#72); Buying offers
-// the wishlist lists, then "New list…" (value '') with a name field.
-function renderMoveBar(main) {
+// The ticked cards (#89), in the current view's lists.
+const selectedItems = () => currentList().filter((item) => state.selected.has(item.key));
+
+// The selection bar (#89), shown while cards are ticked, at the bottom of the list panel (sticky, see style.css):
+// "N selected", Move to [list] [Move], Clear selection, then the ticked cards' total per store under the store
+// columns. Move to's options come from `moveOptions()`, in labelled groups or not: Selling offers each store's
+// lists, then "New list" for that store (#72); Buying offers the wishlist lists, then "New list…" (value '') with a
+// name field. When some ticked cards are in a sub-list, the main list comes first (TO_MAIN).
+function renderSelBar() {
   const c = cfg();
-  const bar = $('#move-bar');
-  const count = main.filter((item) => item.starred).length;
-  bar.hidden = !count;
+  const items = selectedItems();
+  const bar = $('#sel-bar');
+  bar.hidden = !items.length;
   if (bar.hidden) return;
-  const groups = c.moveOptions();
+  $('#sel-count').textContent = `${items.length} selected`;
+
+  const back = items.some((item) => groupOf(item)) ? [{ label: 'Back to', options: [{ value: TO_MAIN, label: c.listTitle }] }] : [];
+  const groups = [...back, ...c.moveOptions()];
   const values = groups.flatMap((g) => g.options.map((o) => o.value));
   if (!values.includes(state.moveTo[state.view])) state.moveTo[state.view] = values[0] ?? '';
   const option = (o) =>
     `<option value="${esc(o.value)}"${o.value === state.moveTo[state.view] ? ' selected' : ''}>${esc(o.label)}</option>`;
-  $('#move-label').textContent = `Move ${count} starred card${count === 1 ? '' : 's'} to`;
   $('#move-to').innerHTML = groups
     .map((g) => {
       const options = g.options.map(option).join('');
@@ -865,6 +877,39 @@ function renderMoveBar(main) {
     })
     .join('');
   renderMoveName();
+
+  // Totals as in the lists' footers (copies counted in store lists), the best one in green: the highest when selling,
+  // the cheapest store that has them all when buying (`totalEligible`). Stores left out are dimmed and never best.
+  const { perStore, missing } = listTotals(items, { perCopy: true });
+  let best = null;
+  for (const s of state.stores) {
+    if (!isIncluded(s.id) || !c.totalEligible(perStore[s.id], missing[s.id])) continue;
+    if (!best || c.better(perStore[s.id], perStore[best])) best = s.id;
+  }
+  const cell = (s) => {
+    const note = missing[s.id] ? `<span class="alt">${esc(c.missingLabel(missing[s.id]))}</span>` : '';
+    return `<td class="${colClass(s.id)}"><span class="price${s.id === best ? ' best' : ''}"><span class="main">${money(perStore[s.id])}</span>${note}</span></td>`;
+  };
+  $('#sel-totals').innerHTML =
+    `<tr><td class="sel-label">${esc(c.selTotalLabel(items.length))}</td>${state.stores.map(cell).join('')}<td></td></tr>`;
+  alignSelBar();
+}
+
+// Lines the bar's totals up under the store columns of the first list table shown (the tables size their columns
+// by their contents, so theirs differ by a few pixels at most): the label takes everything left of the first store
+// column, then one column per store, then the rest. Run after each render and whenever the panel's size changes.
+function alignSelBar() {
+  const bar = $('#sel-bar');
+  if (bar.hidden) return;
+  const ref = [...$('#list-panel').querySelectorAll('table.grid')]
+    .find((t) => !bar.contains(t) && t.offsetParent && t.tHead?.querySelector('.store-toggle'));
+  if (!ref) return;
+  const box = ref.getBoundingClientRect();
+  const heads = [...ref.tHead.querySelectorAll('.store-toggle')].map((b) => b.closest('th').getBoundingClientRect());
+  const widths = [heads[0].left - box.left, ...heads.map((r) => r.width), box.right - heads.at(-1).right];
+  const table = bar.querySelector('table');
+  table.style.width = `${box.width}px`;
+  table.querySelector('colgroup').innerHTML = widths.map((w) => `<col style="width: ${w}px">`).join('');
 }
 
 // The new list's name field shows only while "New list…" is picked; Move needs a name.
@@ -1068,7 +1113,7 @@ async function refreshPrices(groupId = '') {
   let error = null;
   async function refreshBatch(keys) {
     const { list, errors } = await api(`/api/refresh?mode=${view}`, { method: 'POST', body: JSON.stringify({ keys }) });
-    // Take only this batch's new prices: anything changed on the page meanwhile (star, move, remove, add) stays,
+    // Take only this batch's new prices: anything changed on the page meanwhile (move, quantity, remove, add) stays,
     // and a response arriving late can't put back another batch's older prices.
     const wanted = new Set(keys);
     const fresh = new Map(list.filter((item) => wanted.has(item.key)).map((item) => [item.key, item]));
@@ -1138,7 +1183,7 @@ function saveExcluded() {
 
 // ---- store column order (#83): one order for both views ----
 // /api/stores sends the default order: in-person stores, then online ones. A saved order (store ids) reorders
-// state.stores, which every table, total row, print sheet, "Selling to" section and the move bar follow.
+// state.stores, which every table, total row, print sheet, "Selling to" section and the selection bar follow.
 
 let defaultStores = [];
 
@@ -1197,6 +1242,7 @@ function resetStoreOrder() {
 function setView(view) {
   if (view === state.view) return;
   state.view = view;
+  state.selected.clear(); // the same printing can be in both lists; each view starts with nothing ticked (#89)
   dropUndo();
   try { localStorage.setItem(VIEW_KEY, view); } catch {}
   const query = $('#search-input').value.trim();
@@ -1260,7 +1306,7 @@ async function copyText(text) {
 }
 
 // "Copied" right after the clicked name for 1.5 s, then it fades out (#32). Clicking again restarts it.
-// A re-render (star, qty, remove…) drops it early; that's fine.
+// A re-render (move, qty, remove…) drops it early; that's fine.
 const copiedLabels = new WeakMap(); // name button -> { label, timer }
 
 function showCopied(button, ok) {
@@ -1450,26 +1496,21 @@ $('#paste-rows').addEventListener('change', (e) => {
   renderPaste();
 });
 
-// Star / quantity / remove in the main list and in every sub-list. Rows are found by key: starred cards are
-// shown first, and cards are split across lists, so row order differs from the saved order.
+// Ticking a card (#89) only tints its row and updates the selection bar: no re-render, so nothing on the page moves
+// (and the box keeps the keyboard focus).
+$('#list-panel').addEventListener('change', (e) => {
+  const box = e.target.closest('[data-pick]');
+  if (!box) return;
+  if (box.checked) state.selected.add(box.dataset.pick);
+  else state.selected.delete(box.dataset.pick);
+  box.closest('tr').classList.toggle('picked', box.checked);
+  renderSelBar();
+});
+
+// Quantity / remove in the main list and in every sub-list. Rows are found by key: cards are sorted and split across
+// lists, so row order differs from the saved order.
 $('#list-panel').addEventListener('click', (e) => {
   const list = currentList();
-  const star = e.target.closest('[data-star]');
-  if (star) {
-    const item = list.find((i) => i.key === star.dataset.star);
-    if (!item) return;
-    if (item.starred) {
-      // Unstarring a card in a sub-list also sends it back to the main list, with no quantity.
-      delete item.starred;
-      delete item.sellTo;
-      delete item.sellList;
-      delete item.group;
-      delete item.qty;
-    } else item.starred = true;
-    saveList();
-    renderList();
-    return;
-  }
   const step = e.target.closest('[data-qty]');
   if (step) {
     const item = list.find((i) => i.key === step.dataset.qty);
@@ -1492,7 +1533,7 @@ $('#list-panel').addEventListener('click', (e) => {
 
 // ---- undo a removal (#43) ----
 // One level: the last removed card, for 8 s or until the next removal or a tab switch. Undo puts back the same
-// object, so its star, sub-list (sellTo / sellList / group), quantity and prices come back with it.
+// object, so its sub-list (sellTo / sellList / group), quantity and prices come back with it.
 
 const UNDO_MS = 8000;
 
@@ -1545,7 +1586,7 @@ function confirmDialog({ title, text, confirm }) {
 
 // ---- clear a sub-list: a "Selling to <store>" list (#63) or a wishlist list (#77) ----
 // Once the list has been entered on the store's own buylist, its cards are sold; once a wishlist list is bought,
-// they're owned. Either way the cards leave the list for good. (Unstarring would send them back to the main list
+// they're owned. Either way the cards leave the list for good. (Moving them to the main list would keep them
 // instead.) No undo; the confirmation is the safeguard.
 async function clearSubList(listId) {
   const view = state.view;
@@ -1606,21 +1647,37 @@ $('#move-to').addEventListener('change', (e) => {
 $('#move-name').addEventListener('input', renderMoveName);
 $('#move-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#move-btn').click(); });
 
-// Move the main list's starred cards into the picked sub-list, or into a new one (`newListId`). The picker then
-// stays on that list, so moving more cards doesn't start yet another one.
+// Move the ticked cards (#89) into the picked sub-list, into a new one (`newListId`), or back to the main list
+// (TO_MAIN: without a sub-list or quantity, as un-starring did). The ticks are cleared; the picker stays on
+// that list, so moving more cards doesn't start yet another one.
 $('#move-btn').addEventListener('click', () => {
   const c = cfg();
   const picked = $('#move-to').value;
-  const target = c.groups().some((g) => g.id === picked) ? picked : c.newListId(picked);
-  if (!target) return;
-  for (const item of currentList()) {
-    if (item.starred && !groupOf(item)) c.setGroup(item, target);
+  const target = c.groups().some((g) => g.id === picked) ? picked : picked === TO_MAIN ? TO_MAIN : c.newListId(picked);
+  const items = selectedItems();
+  if (!target || !items.length) return;
+  for (const item of items) {
+    if (target === TO_MAIN) {
+      delete item.sellTo;
+      delete item.sellList;
+      delete item.group;
+      delete item.qty;
+    } else c.setGroup(item, target);
   }
   state.moveTo[state.view] = target;
+  state.selected.clear();
   $('#move-name').value = '';
   saveList();
   renderList();
 });
+
+$('#sel-clear').addEventListener('click', () => {
+  state.selected.clear();
+  renderList();
+});
+
+// The selection bar's totals follow the tables' columns, which change with the panel's width.
+new ResizeObserver(alignSelBar).observe($('#list-panel'));
 
 // Dragging a store header sideways moves its column (#83), in every table. Pointer events rather than HTML5 drag and
 // drop: Firefox doesn't start a native drag from a <button>, and this tells a drag from a click. It starts after 6 px;
@@ -1716,6 +1773,8 @@ document.addEventListener('click', (e) => {
     api('/api/list?mode=sell'),
     api('/api/list?mode=buy'),
   ]);
+  // The star is gone (#89): a card's sub-list already says it's being sold or bought. Old stars drop at the next save.
+  for (const item of [...state.lists.sell, ...state.lists.buy]) delete item.starred;
   loadStoreOrder();
   loadExcluded();
   applyView();
